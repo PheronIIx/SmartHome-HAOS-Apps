@@ -258,8 +258,8 @@ def file_diff(relative: str, commit_sha: str) -> dict:
         return {**result, "kind": "binary_or_non_utf8", "message": "Невозможно показать текстовый diff."}
     # GitHub is the proposed version (+), HA is the existing version (-).
     diff_iter = difflib.unified_diff(
-        local_text.replace("\\r\\n", "\\n").splitlines(keepends=True),
-        remote_text.replace("\\r\\n", "\\n").splitlines(keepends=True),
+        local_text.replace("\r\n", "\n").splitlines(keepends=True),
+        remote_text.replace("\r\n", "\n").splitlines(keepends=True),
         fromfile="HAOS/" + relative, tofile="GitHub/" + relative, n=3)
     used = 0
     for line in diff_iter:
