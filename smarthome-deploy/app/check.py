@@ -1,6 +1,7 @@
 """Compare GitHub Git blob IDs against a read-only HA configuration mount."""
 from __future__ import annotations
 import base64
+from concurrent.futures import ThreadPoolExecutor
 import difflib
 import hashlib
 import json
@@ -141,9 +142,31 @@ def check() -> dict:
             record["status"] = "error"
             record["detail"] = str(error)
         files.append(record)
+    # Fetch only mismatched blobs to distinguish formatting from real changes.
+    # Run a few requests concurrently so the mobile UI remains responsive.
+    candidates = [record for record in files if record["status"] == "modified"]
+    def classify(record: dict) -> str:
+        try:
+            local_file = safe_local_file(record["path"])
+            if local_file.stat().st_size > MAX_DIFF_BYTES:
+                return "unclassified"
+            remote = _load_blob_for_diff(repository, token, record["github_sha"])
+            local = local_file.read_bytes()
+            if len(local) > MAX_DIFF_BYTES:
+                return "unclassified"
+            if local == remote:
+                return "same"
+            if _normalize_line_ends(local) == _normalize_line_ends(remote):
+                return "format_only"
+            return "modified"
+        except (OSError, RuntimeError, ValueError):
+            return "unclassified"
+    with ThreadPoolExecutor(max_workers=4) as pool:
+        for record, status in zip(candidates, pool.map(classify, candidates)):
+            record["status"] = status
     files.sort(key=lambda item: item["path"])
     totals = {status: sum(f["status"] == status for f in files)
-              for status in ("same", "modified", "missing", "error")}
+              for status in ("same", "format_only", "modified", "unclassified", "missing", "error")}
     return {"configured": True, "repository": repository, "branch": branch,
             "commit": commit_sha, "files": files, "totals": totals,
             "mode": "read-only", "deploy_enabled": False}
@@ -226,7 +249,7 @@ def file_diff(relative: str, commit_sha: str) -> dict:
               "github_crlf": remote.count(b"\r\n"),
               "local_crlf": local.count(b"\r\n") if local is not None else None,
               "diff": [], "truncated": False}
-    if kind == "same":
+    if kind in ("same", "line_endings_only"):
         return result
     try:
         remote_text = remote.decode("utf-8")
@@ -235,7 +258,8 @@ def file_diff(relative: str, commit_sha: str) -> dict:
         return {**result, "kind": "binary_or_non_utf8", "message": "Невозможно показать текстовый diff."}
     # GitHub is the proposed version (+), HA is the existing version (-).
     diff_iter = difflib.unified_diff(
-        local_text.splitlines(keepends=True), remote_text.splitlines(keepends=True),
+        local_text.replace("\\r\\n", "\\n").splitlines(keepends=True),
+        remote_text.replace("\\r\\n", "\\n").splitlines(keepends=True),
         fromfile="HAOS/" + relative, tofile="GitHub/" + relative, n=3)
     used = 0
     for line in diff_iter:
