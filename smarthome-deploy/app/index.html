@@ -1,0 +1,16 @@
+<!doctype html>
+<html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>SmartHome Deploy</title><style>
+:root{color-scheme:light dark;font-family:system-ui,sans-serif}body{margin:0;padding:16px;background:Canvas;color:CanvasText}
+main{max-width:800px;margin:auto}.top{display:flex;align-items:center;justify-content:space-between;gap:12px}
+small{opacity:.7}.card{border:1px solid color-mix(in srgb,CanvasText 20%,transparent);border-radius:12px;padding:16px;margin:12px 0}
+button{padding:10px 15px;border-radius:9px;border:1px solid color-mix(in srgb,CanvasText 30%,transparent);background:Canvas;color:CanvasText;cursor:pointer}
+.status{font-weight:600}.ok{color:#2d9d61}.warn{color:#c77e0d}.error{color:#c84343}
+.file{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:10px 0;border-top:1px solid color-mix(in srgb,CanvasText 14%,transparent);overflow-wrap:anywhere}
+.file code{font-size:.82rem}.file span{white-space:nowrap}p{line-height:1.5}
+</style></head><body><main>
+<div class="top"><div><h2>SmartHome Deploy</h2><small>Предпросмотр · только чтение</small></div><button id="refresh" type="button">Проверить</button></div>
+<div class="card"><div id="summary" role="status" aria-live="polite">Нажмите «Проверить».</div><small id="version"></small></div>
+<div class="card"><h3>Управляемые файлы</h3><div id="files">Пока нет результатов.</div></div>
+<p><small>Эта версия не устанавливает файлы и не меняет Home Assistant. YAML дашборда из GitHub также не развёртывается.</small></p>
+</main><script src="app.js" defer></script></body></html>
