@@ -6,6 +6,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs, urlsplit
 from .check import check, file_diff
+from .plan import prepare_plan
 
 PORT = 8099
 INGRESS_PROXY = "172.30.32.2"
@@ -30,6 +31,15 @@ class Handler(BaseHTTPRequestHandler):
             except Exception as error:
                 print("SmartHome Deploy check failed:", type(error).__name__, str(error), flush=True)
                 self._send(503, "application/json", json.dumps({"error": "Не удалось выполнить проверку. См. журнал приложения."}, ensure_ascii=False).encode())
+        elif path == "/api/plan":
+            try:
+                payload = prepare_plan()
+                self._send(200, "application/json", json.dumps(payload, ensure_ascii=False).encode())
+            except ValueError:
+                self._send(400, "application/json", b'{"error":"Invalid planner configuration"}')
+            except Exception as error:
+                print("SmartHome Deploy plan failed:", type(error).__name__, str(error), flush=True)
+                self._send(503, "application/json", json.dumps({"error": "Не удалось подготовить план. См. журнал приложения."}, ensure_ascii=False).encode())
         elif path == "/api/diff":
             args = parse_qs(parsed.query, keep_blank_values=True)
             if set(args) != {"path", "commit"} or len(args["path"]) != 1 or len(args["commit"]) != 1:
