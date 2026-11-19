@@ -73,20 +73,20 @@ class Handler(BaseHTTPRequestHandler):
         # HA Ingress is the authenticated admin boundary (panel_admin=true).
         # A per-process CSRF secret plus same-origin metadata protects POST.
         if os.environ.get("SMARTHOME_DEV_ALLOW_LOCAL") != "1" and self.client_address[0] != INGRESS_PROXY:
-            self._send(403, "application/json", json.dumps({"error": "Access denied or CSRF validation failed"}).encode())
+            self._deny_post("ingress_proxy")
             return
         parsed = urlsplit(self.path)
         if parsed.path not in ("/api/backups/create", "/api/backups/verify", "/api/backups/rehearse"):
             self.send_error(404)
             return
         if self.headers.get("Sec-Fetch-Site") not in ("same-origin", "none"):
-            self._send(403, "application/json", json.dumps({"error": "Access denied or CSRF validation failed"}).encode())
+            self._deny_post("fetch_metadata")
             return
         # Ingress rewrites proxy Host; comparing it with browser Origin
         # rejects legitimate mobile clients. Ingress authentication,
         # same-site fetch metadata and CSRF secret still protect POST.
         if not hmac.compare_digest(self.headers.get("X-CSRF-Token", ""), CSRF_TOKEN):
-            self._send(403, "application/json", json.dumps({"error": "Access denied or CSRF validation failed"}).encode())
+            self._deny_post("csrf_token")
             return
         if self.headers.get("Content-Type", "").split(";", 1)[0] != "application/json":
             self._send(415, "application/json", json.dumps({"error": "JSON required"}).encode())
@@ -116,6 +116,13 @@ class Handler(BaseHTTPRequestHandler):
         except Exception as error:
             print("Backup operation failed:", type(error).__name__, str(error), flush=True)
             self._send(503, "application/json", b'{"error":"Backup operation failed; see app log"}')
+
+    def _deny_post(self, reason: str) -> None:
+        # Fixed rejection code only; never log credentials or request headers.
+        print("Backup POST rejected:", reason, flush=True)
+        self._send(403, "application/json", json.dumps({
+            "error": "Backup request rejected: " + reason
+        }).encode())
 
     def _send(self, status: int, content_type: str, payload: bytes) -> None:
         self.send_response(status)
