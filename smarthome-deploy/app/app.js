@@ -54,7 +54,7 @@ async function refresh() {
           details.textContent = "Загрузка различий…";
           inspect.disabled = true;
           try {
-            const query = new URLSearchParams({path: item.path, commit: result.commit});
+            const query = new URLSearchParams({path: item.path, commit: currentCommit});
             const response = await fetch("api/diff?" + query.toString(), {cache:"no-store"});
             const result = await response.json();
             if (!response.ok) throw new Error(result.error || "Ошибка сравнения");
