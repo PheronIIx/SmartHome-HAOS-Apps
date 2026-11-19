@@ -122,7 +122,7 @@ class ComparisonTests(unittest.TestCase):
     def test_unified_diff_ignores_crlf_and_shows_real_change_only(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
-            local = b"first\r\nsecond\r\nthird"
+            local = b"first\r\nsecond\r\nthird\r\n"
             remote = b"first\nsecond\nthird\n// test marker"
             (root / "configuration.yaml").write_bytes(local)
             sha = hashlib.sha1(b"blob " + str(len(remote)).encode() + b"\0" + remote).hexdigest()
