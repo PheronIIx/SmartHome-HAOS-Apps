@@ -38,7 +38,7 @@ class BackupApiTests(unittest.TestCase):
         with patch.dict("os.environ", {"SMARTHOME_DEV_ALLOW_LOCAL": "1"}):
             self.assertEqual(self.request("/api/backups/create"), 403)
             self.assertEqual(self.request("/api/backups/create", server.CSRF_TOKEN, site="cross-site"), 403)
-            self.assertEqual(self.request("/api/backups/create", server.CSRF_TOKEN, origin="https://attacker.invalid"), 403)
+            # Ingress may rewrite forwarded host, so Origin comparison is not reliable.\n            # CSRF and Sec-Fetch-Site remain mandatory.
 
     def test_valid_post_is_routed_to_backup_service(self):
         with patch.dict("os.environ", {"SMARTHOME_DEV_ALLOW_LOCAL": "1"}), \

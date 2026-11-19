@@ -163,11 +163,19 @@ const backupStatus = document.getElementById("backup-status");
 const backupList = document.getElementById("backup-list");
 let backupCsrf = "";
 
+async function readBackupJson(response) {
+  const type = response.headers.get("Content-Type") || "";
+  if (!type.toLowerCase().includes("application/json")) {
+    throw new Error("Сервер вернул HTTP " + response.status + " вместо JSON. Проверьте доступ через Ingress и журнал SmartHome Deploy.");
+  }
+  return response.json();
+}
+
 async function backupRequest(path, body) {
   if (!backupCsrf) {
     const auth = await fetch("api/security", {cache:"no-store"});
     if (!auth.ok) throw new Error("Не удалось получить подтверждение доступа");
-    const data = await auth.json();
+    const data = await readBackupJson(auth);
     backupCsrf = data.csrf_token;
   }
   const response = await fetch(path, {
@@ -176,7 +184,7 @@ async function backupRequest(path, body) {
     body:JSON.stringify(body),
     cache:"no-store"
   });
-  const result = await response.json();
+  const result = await readBackupJson(response);
   if (!response.ok) throw new Error(result.error || "Ошибка резервного копирования");
   return result;
 }
@@ -187,7 +195,7 @@ async function loadBackups() {
   backupList.replaceChildren();
   try {
     const response = await fetch("api/backups", {cache:"no-store"});
-    const result = await response.json();
+    const result = await readBackupJson(response);
     if (!response.ok) throw new Error(result.error || "Не удалось получить список");
     backupStatus.textContent = result.backups.length
       ? "Архивов: " + result.backups.length + (result.truncated ? " · показаны последние 100" : "")
