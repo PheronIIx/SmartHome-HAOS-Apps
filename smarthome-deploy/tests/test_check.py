@@ -49,7 +49,7 @@ class ComparisonTests(unittest.TestCase):
             with patch.object(module,"CONFIG_ROOT",root),patch.object(module,"load_options",return_value=options):
                 with patch.object(module,"github_json",side_effect=[commit,tree]):
                     result=module.check()
-            self.assertEqual(result["totals"],{"same":1,"modified":0,"missing":1,"error":0})
+            self.assertEqual(result["totals"],{"same":1,"format_only":0,"modified":0,"unclassified":0,"missing":1,"error":0})
             self.assertEqual(len(result["files"]),2)
 
 
@@ -100,3 +100,4 @@ class ComparisonTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
