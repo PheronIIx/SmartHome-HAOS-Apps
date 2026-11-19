@@ -1,5 +1,7 @@
 """Compare GitHub Git blob IDs against a read-only HA configuration mount."""
 from __future__ import annotations
+import base64
+import difflib
 import hashlib
 import json
 import os
@@ -16,6 +18,8 @@ BRANCH_RE = re.compile(r"^[A-Za-z0-9_./-]+$")
 GIT_SHA_RE = re.compile(r"^[0-9a-f]{40}$")
 MAX_TRACKED_FILES = 300
 MAX_LOCAL_FILE_BYTES = 8 * 1024 * 1024
+MAX_DIFF_BYTES = 256 * 1024
+MAX_DIFF_LINES = 2500
 
 def managed_path(repository_path: str) -> str | None:
     prefix = "home-assistant/"
@@ -143,3 +147,104 @@ def check() -> dict:
     return {"configured": True, "repository": repository, "branch": branch,
             "commit": commit_sha, "files": files, "totals": totals,
             "mode": "read-only", "deploy_enabled": False}
+
+def _normalize_line_ends(value: bytes) -> bytes:
+    """Ignore only CRLF versus LF and trailing newline count in diagnostic mode."""
+    return value.replace(b"\r\n", b"\n").rstrip(b"\n")
+
+
+def _load_blob_for_diff(repository: str, token: str, sha: str) -> bytes:
+    data = github_json("repos/" + quote(repository, safe="/") + "/git/blobs/" + sha, token)
+    if data.get("encoding") != "base64" or not isinstance(data.get("content"), str):
+        raise RuntimeError("Unexpected GitHub blob encoding")
+    if not isinstance(data.get("size"), int) or data["size"] > MAX_DIFF_BYTES:
+        raise ValueError("GitHub file exceeds diff limit (256 KiB)")
+    try:
+        raw = base64.b64decode(data["content"], validate=False)
+    except (ValueError, base64.binascii.Error):
+        raise RuntimeError("Invalid base64 GitHub blob") from None
+    if len(raw) != data["size"] or len(raw) > MAX_DIFF_BYTES:
+        raise RuntimeError("GitHub blob size mismatch")
+    digest = hashlib.sha1(b"blob " + str(len(raw)).encode("ascii") + b"\0" + raw).hexdigest()
+    if digest != sha:
+        raise RuntimeError("GitHub blob checksum mismatch")
+    return raw
+
+
+def file_diff(relative: str, commit_sha: str) -> dict:
+    """Retrieve a single allowlisted file from the pinned commit and compare to HA."""
+    if managed_path("home-assistant/" + relative) != relative:
+        raise ValueError("File is not managed")
+    if not GIT_SHA_RE.fullmatch(commit_sha):
+        raise ValueError("Invalid commit identifier")
+    options = load_options()
+    repository = str(options.get("repository", "")).strip()
+    token = str(options.get("github_token", "")).strip()
+    if not REPOSITORY_RE.fullmatch(repository) or not token:
+        raise ValueError("GitHub not configured")
+    if not CONFIG_ROOT.is_dir():
+        raise RuntimeError("HA configuration mount is unavailable")
+    base_url = "repos/" + quote(repository, safe="/")
+    commit = github_json(base_url + "/commits/" + commit_sha, token)
+    if commit.get("sha") != commit_sha:
+        raise RuntimeError("Unexpected commit identifier")
+    tree_sha = (commit.get("commit") or {}).get("tree", {}).get("sha")
+    if not GIT_SHA_RE.fullmatch(str(tree_sha)):
+        raise RuntimeError("Invalid commit tree")
+    tree = github_json(base_url + "/git/trees/" + tree_sha + "?recursive=1", token)
+    if tree.get("truncated") or not isinstance(tree.get("tree"), list):
+        raise RuntimeError("Incomplete GitHub tree")
+    github_path = "home-assistant/" + relative
+    matches = [item for item in tree["tree"] if item.get("path") == github_path]
+    if len(matches) != 1 or matches[0].get("type") != "blob" or matches[0].get("mode") not in ("100644", "100755"):
+        raise ValueError("Managed regular file not found at requested commit")
+    sha = matches[0].get("sha", "")
+    if not isinstance(sha, str) or not GIT_SHA_RE.fullmatch(sha):
+        raise RuntimeError("Invalid GitHub blob identifier")
+    remote = _load_blob_for_diff(repository, token, sha)
+    local_file = safe_local_file(relative)
+    if local_file.exists():
+        if not local_file.is_file():
+            raise ValueError("Local path is not a regular file")
+        if local_file.stat().st_size > MAX_DIFF_BYTES:
+            raise ValueError("Local file exceeds diff limit (256 KiB)")
+        local = local_file.read_bytes()
+    else:
+        local = None
+    if local is not None and local == remote:
+        kind = "same"
+    elif local is None:
+        kind = "missing"
+    elif _normalize_line_ends(local) == _normalize_line_ends(remote):
+        kind = "line_endings_only"
+    else:
+        kind = "content_changed"
+    result = {"path": relative, "commit": commit_sha, "kind": kind,
+              "github_bytes": len(remote), "local_bytes": len(local) if local is not None else None,
+              "github_final_newline": remote.endswith(b"\n"),
+              "local_final_newline": local.endswith(b"\n") if local is not None else None,
+              "github_crlf": remote.count(b"\r\n"),
+              "local_crlf": local.count(b"\r\n") if local is not None else None,
+              "diff": [], "truncated": False}
+    if kind == "same":
+        return result
+    try:
+        remote_text = remote.decode("utf-8")
+        local_text = (local or b"").decode("utf-8")
+    except UnicodeDecodeError:
+        return {**result, "kind": "binary_or_non_utf8", "message": "Невозможно показать текстовый diff."}
+    # GitHub is the proposed version (+), HA is the existing version (-).
+    diff_iter = difflib.unified_diff(
+        local_text.splitlines(keepends=True), remote_text.splitlines(keepends=True),
+        fromfile="HAOS/" + relative, tofile="GitHub/" + relative, n=3)
+    used = 0
+    for line in diff_iter:
+        used += 1
+        if used > MAX_DIFF_LINES:
+            result["truncated"] = True
+            break
+        result["diff"].append(line.rstrip("\r\n"))
+    if not result["diff"] and kind != "same":
+        # difflib alone cannot show an absent final newline consistently.
+        result["message"] = "Различие только в окончаниях строк; смотрите сведения о CRLF и последней строке."
+    return result

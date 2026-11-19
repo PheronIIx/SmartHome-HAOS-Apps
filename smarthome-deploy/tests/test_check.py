@@ -1,3 +1,4 @@
+import base64
 import hashlib
 import tempfile
 from pathlib import Path
@@ -50,6 +51,52 @@ class ComparisonTests(unittest.TestCase):
                     result=module.check()
             self.assertEqual(result["totals"],{"same":1,"modified":0,"missing":1,"error":0})
             self.assertEqual(len(result["files"]),2)
+
+
+    def test_diff_normalization_and_content(self):
+        self.assertEqual(module._normalize_line_ends(b"a\r\nb\r\n"), b"a\nb")
+        self.assertEqual(module._normalize_line_ends(b"a\n"), b"a")
+        self.assertNotEqual(module._normalize_line_ends(b"a  \n"), b"a")
+
+    def test_pinned_diff_and_no_outside_paths(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            local = b"line1\r\nline2\r\n"
+            remote = b"line1\nline2\n"
+            (root / "configuration.yaml").write_bytes(local)
+            sha = hashlib.sha1(b"blob " + str(len(remote)).encode() + b"\0" + remote).hexdigest()
+            commit_sha = "a" * 40
+            tree_sha = "b" * 40
+            commit = {"sha": commit_sha, "commit": {"tree": {"sha": tree_sha}}}
+            tree = {"tree": [{"path":"home-assistant/configuration.yaml",
+                               "type":"blob", "mode":"100644", "sha":sha}]}
+            blob = {"encoding":"base64", "size":len(remote),
+                    "content":base64.b64encode(remote).decode()}
+            opts = {"repository":"PheronIIx/SmartHome", "github_token":"fake"}
+            with patch.object(module, "CONFIG_ROOT", root), patch.object(module,"load_options",return_value=opts):
+                with patch.object(module, "github_json",side_effect=[commit,tree,blob]):
+                    result=module.file_diff("configuration.yaml", commit_sha)
+                self.assertEqual(result["kind"], "line_endings_only")
+                self.assertEqual(result["local_crlf"], 2)
+                self.assertEqual(result["github_crlf"], 0)
+                with patch.object(module,"github_json",side_effect=AssertionError("network must not be used")):
+                    with self.assertRaises(ValueError):
+                        module.file_diff("secrets.yaml", commit_sha)
+                    with self.assertRaises(ValueError):
+                        module.file_diff("../ssh/key", commit_sha)
+                    with self.assertRaises(ValueError):
+                        module.file_diff("configuration.yaml", "not-a-commit")
+
+    def test_pinned_diff_is_not_an_arbitrary_remote_blob(self):
+        with tempfile.TemporaryDirectory() as directory:
+            options = {"repository":"PheronIIx/SmartHome", "github_token":"fake"}
+            commit = {"sha":"a"*40,"commit":{"tree":{"sha":"b"*40}}}
+            tree = {"tree":[{"type":"blob", "path":"home-assistant/secrets.yaml",
+                             "mode":"100644", "sha":"c"*40}]}
+            with patch.object(module,"CONFIG_ROOT",Path(directory)),patch.object(module,"load_options",return_value=options):
+                with patch.object(module,"github_json",side_effect=[commit,tree]):
+                    with self.assertRaises(ValueError):
+                        module.file_diff("configuration.yaml","a"*40)
 
 if __name__ == "__main__":
     unittest.main()

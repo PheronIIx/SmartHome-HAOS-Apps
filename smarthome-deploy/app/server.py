@@ -4,8 +4,8 @@ import json
 import os
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
-from urllib.parse import urlsplit
-from .check import check
+from urllib.parse import parse_qs, urlsplit
+from .check import check, file_diff
 
 PORT = 8099
 INGRESS_PROXY = "172.30.32.2"
@@ -17,7 +17,8 @@ class Handler(BaseHTTPRequestHandler):
         if not dev and self.client_address[0] != INGRESS_PROXY:
             self.send_error(403)
             return
-        path = urlsplit(self.path).path
+        parsed = urlsplit(self.path)
+        path = parsed.path
         if path in ("", "/", "/index.html"):
             self._send(200, "text/html; charset=utf-8", (STATIC_DIR / "index.html").read_bytes())
         elif path == "/app.js":
@@ -29,6 +30,19 @@ class Handler(BaseHTTPRequestHandler):
             except Exception as error:
                 print("SmartHome Deploy check failed:", type(error).__name__, str(error), flush=True)
                 self._send(503, "application/json", json.dumps({"error": "Не удалось выполнить проверку. См. журнал приложения."}, ensure_ascii=False).encode())
+        elif path == "/api/diff":
+            args = parse_qs(parsed.query, keep_blank_values=True)
+            if set(args) != {"path", "commit"} or len(args["path"]) != 1 or len(args["commit"]) != 1:
+                self._send(400, "application/json", b'{"error":"Invalid parameters"}')
+                return
+            try:
+                payload = file_diff(args["path"][0], args["commit"][0])
+                self._send(200, "application/json", json.dumps(payload, ensure_ascii=False).encode())
+            except ValueError as error:
+                self._send(400, "application/json", json.dumps({"error": str(error)}, ensure_ascii=False).encode())
+            except Exception as error:
+                print("SmartHome Deploy diff failed:", type(error).__name__, str(error), flush=True)
+                self._send(503, "application/json", json.dumps({"error": "Не удалось получить различия. См. журнал приложения."}, ensure_ascii=False).encode())
         else:
             self.send_error(404)
 

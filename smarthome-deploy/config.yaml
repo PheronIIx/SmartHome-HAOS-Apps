@@ -1,7 +1,7 @@
 name: SmartHome Deploy (read-only preview)
-version: 0.1.0
+version: 0.2.0
 slug: smarthome_deploy
-description: "Compare managed Home Assistant files with a pinned GitHub commit. No deployment actions."
+description: "Compare and preview managed Home Assistant file differences. Read-only; no deployment actions."
 arch:
   - amd64
   - aarch64
