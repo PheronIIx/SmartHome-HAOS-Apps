@@ -78,7 +78,7 @@ async function refresh() {
               for (const line of result.diff) {
                 const el = document.createElement("span");
                 el.className = line.startsWith("+") && !line.startsWith("+++") ? "diff-add" : line.startsWith("-") && !line.startsWith("---") ? "diff-remove" : "diff-context";
-                el.textContent = line + "\\n";
+                el.textContent = line + "\n";
                 pre.append(el);
               }
               details.append(pre);
