@@ -112,3 +112,47 @@ async function refresh() {
 }
 button.addEventListener("click", refresh);
 refresh();
+
+const planButton = document.getElementById("prepare");
+const planSummary = document.getElementById("plan-summary");
+const planFiles = document.getElementById("plan-files");
+planButton.addEventListener("click", async () => {
+  planButton.disabled = true;
+  planSummary.textContent = "Проверяем базовую и целевую версии…";
+  planFiles.replaceChildren();
+  try {
+    const response = await fetch("api/plan", {cache: "no-store"});
+    const plan = await response.json();
+    if (!response.ok) throw new Error(plan.error || "Ошибка подготовки плана");
+    if (!plan.configured) {
+      planSummary.textContent = plan.message || "Не указан базовый коммит";
+      return;
+    }
+    const actions = {
+      no_change: "Без изменений",
+      candidate_review: "Кандидат на обновление · требуется подтверждение",
+      blocked_local_drift: "Блокировано · локальный файл не совпадает с базой",
+      new_file_review: "Новый файл · требуется ручная проверка",
+      deletion_review: "Удаление в GitHub · требуется ручная проверка"
+    };
+    planSummary.textContent = "База: " + plan.baseline.slice(0,12) + " · GitHub: " + plan.target.slice(0,12) + " · установка отключена";
+    for (const item of plan.files) {
+      const row = document.createElement("div");
+      row.className = "file";
+      const name = document.createElement("code");
+      name.textContent = item.path;
+      const status = document.createElement("span");
+      status.textContent = actions[item.action] || "Не определено";
+      status.className = item.action === "no_change" ? "ok" : "warn";
+      status.style.maxWidth = "55%";
+      status.style.whiteSpace = "normal";
+      row.append(name,status);
+      planFiles.append(row);
+    }
+  } catch (error) {
+    planSummary.textContent = error.message || "Ошибка подготовки плана";
+    planSummary.className = "error";
+  } finally {
+    planButton.disabled = false;
+  }
+});

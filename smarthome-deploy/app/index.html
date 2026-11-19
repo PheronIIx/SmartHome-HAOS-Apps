@@ -11,6 +11,7 @@ button{padding:10px 15px;border-radius:9px;border:1px solid color-mix(in srgb,Ca
 </style></head><body><main>
 <div class="top"><div><h2>SmartHome Deploy</h2><small>Предпросмотр · только чтение</small></div><button id="refresh" type="button">Проверить</button></div>
 <div class="card"><div id="summary" role="status" aria-live="polite">Нажмите «Проверить».</div><small id="version"></small></div>
+<div class="card"><h3>Предварительный план установки</h3><p><small>Только просмотр. Изменения и резервные копии не создаются.</small></p><button id="prepare" type="button">Подготовить план</button><div id="plan-summary" role="status" aria-live="polite"></div><div id="plan-files"></div></div>
 <div class="card"><h3>Управляемые файлы</h3><div id="files">Пока нет результатов.</div></div>
 <p><small>Эта версия не устанавливает файлы и не меняет Home Assistant. YAML дашборда из GitHub также не развёртывается.</small></p>
 </main><script src="app.js" defer></script></body></html>

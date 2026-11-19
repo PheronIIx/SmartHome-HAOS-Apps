@@ -1,5 +1,5 @@
 name: SmartHome Deploy (read-only preview)
-version: 0.2.1
+version: 0.3.0
 slug: smarthome_deploy
 description: "Compare and preview managed Home Assistant file differences. Read-only; no deployment actions."
 arch:
@@ -20,8 +20,10 @@ map:
 options:
   repository: PheronIIx/SmartHome
   branch: main
+  baseline_commit: 8de108c40d4ffd0f10039fe4e7e9eec047494974
   github_token: ""
 schema:
   repository: str
   branch: str
   github_token: password
+  baseline_commit: str
