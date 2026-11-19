@@ -49,7 +49,7 @@ def _classify_local(path: str, baseline_sha: str, repository: str, token: str) -
     if not file.is_file() or file.stat().st_size > MAX_DIFF_BYTES:
         return "unverified"
     local = file.read_bytes()
-    from .check import hashlib
+    import hashlib
     sha = hashlib.sha1(b"blob " + str(len(local)).encode("ascii") + b"\0" + local).hexdigest()
     if sha == baseline_sha:
         return "baseline_exact"
@@ -72,12 +72,12 @@ def prepare_plan() -> dict:
         raise ValueError("GitHub is not configured")
     if not GIT_SHA_RE.fullmatch(baseline_commit):
         return {"configured": False, "message": "Укажите подтверждённый базовый коммит (40 символов SHA) в настройках приложения.", "files": []}
-    if not branch or ".." in branch or branch.startswith("/"):
+    from .check import BRANCH_RE
+    if not BRANCH_RE.fullmatch(branch) or ".." in branch or branch.startswith("/") or branch.endswith("/"):
         raise ValueError("Invalid branch")
     if not CONFIG_ROOT.is_dir():
         raise RuntimeError("HA configuration mount is unavailable")
     baseline = _managed_tree(repository, token, baseline_commit)
-    target = _managed_tree(repository, token, branch)
     # Resolve branch once, and then use a pinned immutable SHA for the final tree.
     # Target branch can move between API requests, so the returned commit identifies
     # exactly which tree was inspected.
