@@ -91,11 +91,11 @@ class ComparisonTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             (root / "packages").mkdir()
-            (root / "packages" / "g45.yaml").write_bytes(b"alpha\\r\\nbeta\\r\\n")
-            (root / "packages" / "notify.yaml").write_bytes(b"old\\n")
-            remote_a, remote_b = b"alpha\\nbeta\\n", b"new\\n"
+            (root / "packages" / "g45.yaml").write_bytes(b"alpha\r\nbeta\r\n")
+            (root / "packages" / "notify.yaml").write_bytes(b"old\n")
+            remote_a, remote_b = b"alpha\nbeta\n", b"new\n"
             def blob_sha(data):
-                return hashlib.sha1(b"blob " + str(len(data)).encode() + b"\\0" + data).hexdigest()
+                return hashlib.sha1(b"blob " + str(len(data)).encode() + b"\0" + data).hexdigest()
             sha_a, sha_b = blob_sha(remote_a), blob_sha(remote_b)
             commit = {"sha":"a"*40, "commit":{"tree":{"sha":"b"*40}}}
             tree = {"truncated":False, "tree":[
