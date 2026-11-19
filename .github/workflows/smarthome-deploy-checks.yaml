@@ -29,6 +29,6 @@ jobs:
       - name: Parse app manifest
         run: |
           python -m pip install --quiet pyyaml
-          python -c "import yaml; data=yaml.safe_load(open('smarthome-deploy/config.yaml')); assert data['version']=='0.3.0'"
+          python -c "import yaml; data=yaml.safe_load(open('smarthome-deploy/config.yaml')); assert data['version']=='0.3.1'"
       - name: Check JS syntax
         run: node --check smarthome-deploy/app/app.js
