@@ -1,5 +1,5 @@
 name: SmartHome Deploy (read-only preview)
-version: 0.3.0
+version: 0.3.1
 slug: smarthome_deploy
 description: "Compare and preview managed Home Assistant file differences. Read-only; no deployment actions."
 arch:

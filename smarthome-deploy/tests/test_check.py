@@ -119,6 +119,29 @@ class ComparisonTests(unittest.TestCase):
             self.assertEqual(statuses["packages/g45.yaml"],"format_only")
             self.assertEqual(statuses["packages/notify.yaml"],"modified")
 
+    def test_unified_diff_ignores_crlf_and_shows_real_change_only(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            local = b"first\r\nsecond\r\nthird\r\n"
+            remote = b"first\nsecond\nthird\n// test marker"
+            (root / "configuration.yaml").write_bytes(local)
+            sha = hashlib.sha1(b"blob " + str(len(remote)).encode() + b"\0" + remote).hexdigest()
+            commit_sha = "a" * 40
+            commit = {"sha": commit_sha, "commit": {"tree": {"sha": "b" * 40}}}
+            tree = {"tree": [{"path": "home-assistant/configuration.yaml",
+                             "type": "blob", "mode": "100644", "sha": sha}]}
+            blob = {"encoding": "base64", "size": len(remote),
+                    "content": base64.b64encode(remote).decode()}
+            options = {"repository": "PheronIIx/SmartHome", "github_token": "fake"}
+            with patch.object(module, "CONFIG_ROOT", root), patch.object(module, "load_options", return_value=options):
+                with patch.object(module, "github_json", side_effect=[commit, tree, blob]):
+                    result = module.file_diff("configuration.yaml", commit_sha)
+            self.assertEqual(result["kind"], "content_changed")
+            additions = [line for line in result["diff"] if line.startswith("+") and not line.startswith("+++")]
+            deletions = [line for line in result["diff"] if line.startswith("-") and not line.startswith("---")]
+            self.assertEqual(additions, ["+// test marker"])
+            self.assertEqual(deletions, [])
+
     def test_pinned_diff_is_not_an_arbitrary_remote_blob(self):
         with tempfile.TemporaryDirectory() as directory:
             options = {"repository":"PheronIIx/SmartHome", "github_token":"fake"}
