@@ -124,18 +124,24 @@ def verify_snapshot(name: str) -> tuple[dict, dict[str, bytes]]:
         names = archive.namelist()
         if len(names) > MAX_FILES + 1 or len(names) != len(set(names)) or "manifest.json" not in names:
             raise ValueError("Invalid archive members")
+        if archive.getinfo("manifest.json").file_size > 100 * 1024:
+            raise ValueError("Manifest exceeds size limit")
         raw_manifest = archive.read("manifest.json")
         if len(raw_manifest) > 100 * 1024:
             raise ValueError("Manifest exceeds size limit")
         manifest = json.loads(raw_manifest)
-        if manifest.get("version") != 1 or not isinstance(manifest.get("files"), list):
+        if not isinstance(manifest, dict) or manifest.get("version") != 1 or not isinstance(manifest.get("files"), list):
             raise ValueError("Unsupported manifest")
         if not re.fullmatch(r"[0-9a-f]{40}", str(manifest.get("source_commit"))):
             raise ValueError("Invalid commit")
         expected = ["manifest.json"]
         data = {}
         total = 0
+        if not manifest["files"] or len(manifest["files"]) > MAX_FILES:
+            raise ValueError("Invalid number of files")
         for entry in manifest["files"]:
+            if not isinstance(entry, dict):
+                raise ValueError("Invalid manifest entry")
             path = entry.get("path")
             if not isinstance(path, str):
                 raise ValueError("Invalid file path")
