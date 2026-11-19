@@ -4,7 +4,7 @@ import tempfile
 from pathlib import Path
 from unittest import TestCase
 from unittest.mock import patch
-from app import plan
+from app import plan, check
 
 
 def blob_sha(value):
@@ -32,7 +32,7 @@ class PlannerTests(TestCase):
             def fake_api(path, token):
                 self.assertIn("/commits/", path)
                 return {"sha":"b"*40}
-            with patch.object(plan, "CONFIG_ROOT", root), patch.object(plan,"load_options",return_value=opts):
+            with patch.object(plan, "CONFIG_ROOT", root), patch.object(check, "CONFIG_ROOT", root), patch.object(plan,"load_options",return_value=opts):
                 with patch.object(plan, "_managed_tree",side_effect=[original,target]):
                     with patch.object(plan, "_load_blob_for_diff",side_effect=fake_blob):
                         with patch.object(plan, "github_json",side_effect=fake_api):
