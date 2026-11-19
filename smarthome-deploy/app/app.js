@@ -20,7 +20,7 @@ async function refresh() {
     }
     currentCommit = result.commit;
     const t = result.totals;
-    summary.textContent = `Совпадают: ${t.same} · Различаются: ${t.modified} · Отсутствуют: ${t.missing} · Ошибки: ${t.error}`;
+    summary.textContent = `Совпадают: ${t.same} · Только формат строк: ${t.format_only} · Изменено содержимое: ${t.modified} · Не определено: ${t.unclassified} · Отсутствуют: ${t.missing} · Ошибки: ${t.error}`;
     version.textContent = `${result.repository} · ${result.branch} · ${result.commit.slice(0, 12)}`;
     for (const item of result.files) {
       const row = document.createElement("div");
@@ -28,13 +28,13 @@ async function refresh() {
       const name = document.createElement("code");
       name.textContent = item.path;
       const status = document.createElement("span");
-      const label = {same:"Совпадает",modified:"Изменён",missing:"Отсутствует",error:"Ошибка"};
+      const label = {same:"Совпадает",format_only:"Только формат строк",modified:"Изменён",unclassified:"Не определено",missing:"Отсутствует",error:"Ошибка"};
       status.textContent = label[item.status] || "Неизвестно";
-      status.className = item.status === "same" ? "ok" : item.status === "error" ? "error" : "warn";
+      status.className = ["same", "format_only"].includes(item.status) ? "ok" : item.status === "error" ? "error" : "warn";
       const right = document.createElement("div");
       right.className = "file-actions";
       right.append(status);
-      if (item.status === "modified" || item.status === "missing") {
+      if (["modified", "missing", "format_only", "unclassified"].includes(item.status)) {
         const inspect = document.createElement("button");
         inspect.type = "button";
         inspect.className = "diff-button";
@@ -54,7 +54,7 @@ async function refresh() {
           details.textContent = "Загрузка различий…";
           inspect.disabled = true;
           try {
-            const query = new URLSearchParams({path: item.path, commit: currentCommit});
+            const query = new URLSearchParams({path: item.path, commit: result.commit});
             const response = await fetch("api/diff?" + query.toString(), {cache:"no-store"});
             const result = await response.json();
             if (!response.ok) throw new Error(result.error || "Ошибка сравнения");
