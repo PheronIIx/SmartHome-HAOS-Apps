@@ -87,6 +87,38 @@ class ComparisonTests(unittest.TestCase):
                     with self.assertRaises(ValueError):
                         module.file_diff("configuration.yaml", "not-a-commit")
 
+    def test_status_classifies_crlf_vs_real_edit(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / "packages").mkdir()
+            (root / "packages" / "g45.yaml").write_bytes(b"alpha\\r\\nbeta\\r\\n")
+            (root / "packages" / "notify.yaml").write_bytes(b"old\\n")
+            remote_a, remote_b = b"alpha\\nbeta\\n", b"new\\n"
+            def blob_sha(data):
+                return hashlib.sha1(b"blob " + str(len(data)).encode() + b"\\0" + data).hexdigest()
+            sha_a, sha_b = blob_sha(remote_a), blob_sha(remote_b)
+            commit = {"sha":"a"*40, "commit":{"tree":{"sha":"b"*40}}}
+            tree = {"truncated":False, "tree":[
+                {"type":"blob", "path":"home-assistant/packages/g45.yaml", "sha":sha_a},
+                {"type":"blob", "path":"home-assistant/packages/notify.yaml", "sha":sha_b}]}
+            blobs = {sha_a: remote_a, sha_b:remote_b}
+            def mocked_api(path, token):
+                if "/git/blobs/" in path:
+                    value=blobs[path.rsplit("/",1)[-1]]
+                    return {"encoding":"base64", "size":len(value), "content":base64.b64encode(value).decode()}
+                if "/git/trees/" in path:
+                    return tree
+                return commit
+            opts={"repository":"PheronIIx/SmartHome", "branch":"main", "github_token":"fake"}
+            with patch.object(module,"CONFIG_ROOT",root),patch.object(module,"load_options",return_value=opts):
+                with patch.object(module,"github_json",side_effect=mocked_api):
+                    result=module.check()
+            self.assertEqual(result["totals"]["format_only"],1)
+            self.assertEqual(result["totals"]["modified"],1)
+            statuses={i["path"]:i["status"] for i in result["files"]}
+            self.assertEqual(statuses["packages/g45.yaml"],"format_only")
+            self.assertEqual(statuses["packages/notify.yaml"],"modified")
+
     def test_pinned_diff_is_not_an_arbitrary_remote_blob(self):
         with tempfile.TemporaryDirectory() as directory:
             options = {"repository":"PheronIIx/SmartHome", "github_token":"fake"}
