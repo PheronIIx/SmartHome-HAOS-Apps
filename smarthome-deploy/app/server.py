@@ -21,7 +21,7 @@ class Handler(BaseHTTPRequestHandler):
     def do_GET(self) -> None:
         dev = os.environ.get("SMARTHOME_DEV_ALLOW_LOCAL") == "1"
         if not dev and self.client_address[0] != INGRESS_PROXY:
-            self.send_error(403)
+            self._send(403, "application/json", json.dumps({"error": "Access denied or CSRF validation failed"}).encode())
             return
         parsed = urlsplit(self.path)
         path = parsed.path
@@ -73,31 +73,28 @@ class Handler(BaseHTTPRequestHandler):
         # HA Ingress is the authenticated admin boundary (panel_admin=true).
         # A per-process CSRF secret plus same-origin metadata protects POST.
         if os.environ.get("SMARTHOME_DEV_ALLOW_LOCAL") != "1" and self.client_address[0] != INGRESS_PROXY:
-            self.send_error(403)
+            self._send(403, "application/json", json.dumps({"error": "Access denied or CSRF validation failed"}).encode())
             return
         parsed = urlsplit(self.path)
         if parsed.path not in ("/api/backups/create", "/api/backups/verify", "/api/backups/rehearse"):
             self.send_error(404)
             return
         if self.headers.get("Sec-Fetch-Site") not in ("same-origin", "none"):
-            self.send_error(403)
+            self._send(403, "application/json", json.dumps({"error": "Access denied or CSRF validation failed"}).encode())
             return
-        origin = self.headers.get("Origin")
-        host = self.headers.get("X-Forwarded-Host") or self.headers.get("Host", "")
-        proto = self.headers.get("X-Forwarded-Proto") or "https"
-        if origin and origin != proto + "://" + host:
-            self.send_error(403)
-            return
+        # Ingress rewrites proxy Host; comparing it with browser Origin
+        # rejects legitimate mobile clients. Ingress authentication,
+        # same-site fetch metadata and CSRF secret still protect POST.
         if not hmac.compare_digest(self.headers.get("X-CSRF-Token", ""), CSRF_TOKEN):
-            self.send_error(403)
+            self._send(403, "application/json", json.dumps({"error": "Access denied or CSRF validation failed"}).encode())
             return
         if self.headers.get("Content-Type", "").split(";", 1)[0] != "application/json":
-            self.send_error(415)
+            self._send(415, "application/json", json.dumps({"error": "JSON required"}).encode())
             return
         try:
             length = int(self.headers.get("Content-Length", "-1"))
             if not 0 <= length <= MAX_REQUEST_BYTES:
-                self.send_error(413)
+                self._send(413, "application/json", json.dumps({"error": "Request too large"}).encode())
                 return
             body = json.loads(self.rfile.read(length))
             if not isinstance(body, dict):
