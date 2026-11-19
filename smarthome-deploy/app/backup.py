@@ -7,19 +7,18 @@ explicit, separate staging directory (never HA /config).
 from __future__ import annotations
 
 import hashlib
-import io
 import json
 import os
 from pathlib import Path
 import re
 import secrets
-import stat
 import tempfile
 import zipfile
 
 from .check import MAX_DIFF_BYTES, managed_path, safe_local_file
 
 BACKUP_ROOT = Path(os.environ.get("SMARTHOME_BACKUP_ROOT", "/data/backups"))
+RESTORE_ROOT = Path(os.environ.get("SMARTHOME_RESTORE_ROOT", "/data/restore-rehearsals"))
 BACKUP_NAME = re.compile(r"^[0-9a-f]{24}\.zip$")
 MAX_FILES = 100
 MAX_TOTAL_BYTES = 16 * 1024 * 1024
@@ -163,11 +162,14 @@ def rehearse_restore(name: str, target_directory: Path) -> dict:
     """Verify then restore to an isolated empty staging directory, never /config."""
     manifest, data = verify_snapshot(name)
     target = Path(target_directory)
-    if target.is_symlink() or target.resolve(strict=False) == target.anchor:
-        raise ValueError("Invalid restore destination")
+    if target.is_symlink():
+        raise ValueError("Symlinked staging destination")
+    restore_root = RESTORE_ROOT.resolve(strict=False)
+    target_abs = target.resolve(strict=False)
+    if not target_abs.is_relative_to(restore_root) or target_abs == restore_root:
+        raise ValueError("Restore destination must be inside isolated staging root")
     from . import check
     ha_root = check.CONFIG_ROOT.resolve(strict=False)
-    target_abs = target.resolve(strict=False)
     if target_abs == ha_root or target_abs.is_relative_to(ha_root):
         raise ValueError("Cannot restore into Home Assistant config")
     if target_abs == BACKUP_ROOT.resolve(strict=False) or target_abs.is_relative_to(BACKUP_ROOT.resolve(strict=False)):
