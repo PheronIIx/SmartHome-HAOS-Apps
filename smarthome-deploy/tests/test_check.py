@@ -54,17 +54,17 @@ class ComparisonTests(unittest.TestCase):
 
 
     def test_diff_normalization_and_content(self):
-        self.assertEqual(module._normalize_line_ends(b"a\\r\\nb\\r\\n"), b"a\\nb")
-        self.assertEqual(module._normalize_line_ends(b"a\\n"), b"a")
-        self.assertNotEqual(module._normalize_line_ends(b"a  \\n"), b"a")
+        self.assertEqual(module._normalize_line_ends(b"a\r\nb\r\n"), b"a\nb")
+        self.assertEqual(module._normalize_line_ends(b"a\n"), b"a")
+        self.assertNotEqual(module._normalize_line_ends(b"a  \n"), b"a")
 
     def test_pinned_diff_and_no_outside_paths(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
-            local = b"line1\\r\\nline2\\r\\n"
-            remote = b"line1\\nline2\\n"
+            local = b"line1\r\nline2\r\n"
+            remote = b"line1\nline2\n"
             (root / "configuration.yaml").write_bytes(local)
-            sha = hashlib.sha1(b"blob " + str(len(remote)).encode() + b"\\0" + remote).hexdigest()
+            sha = hashlib.sha1(b"blob " + str(len(remote)).encode() + b"\0" + remote).hexdigest()
             commit_sha = "a" * 40
             tree_sha = "b" * 40
             commit = {"sha": commit_sha, "commit": {"tree": {"sha": tree_sha}}}
