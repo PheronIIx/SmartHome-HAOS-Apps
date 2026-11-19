@@ -156,3 +156,101 @@ planButton.addEventListener("click", async () => {
     planButton.disabled = false;
   }
 });
+
+const backupCreate = document.getElementById("backup-create");
+const backupRefresh = document.getElementById("backup-refresh");
+const backupStatus = document.getElementById("backup-status");
+const backupList = document.getElementById("backup-list");
+let backupCsrf = "";
+
+async function backupRequest(path, body) {
+  if (!backupCsrf) {
+    const auth = await fetch("api/security", {cache:"no-store"});
+    if (!auth.ok) throw new Error("Не удалось получить подтверждение доступа");
+    const data = await auth.json();
+    backupCsrf = data.csrf_token;
+  }
+  const response = await fetch(path, {
+    method:"POST",
+    headers:{"Content-Type":"application/json", "X-CSRF-Token":backupCsrf},
+    body:JSON.stringify(body),
+    cache:"no-store"
+  });
+  const result = await response.json();
+  if (!response.ok) throw new Error(result.error || "Ошибка резервного копирования");
+  return result;
+}
+
+async function loadBackups() {
+  backupRefresh.disabled = true;
+  backupStatus.textContent = "Загружаем список…";
+  backupList.replaceChildren();
+  try {
+    const response = await fetch("api/backups", {cache:"no-store"});
+    const result = await response.json();
+    if (!response.ok) throw new Error(result.error || "Не удалось получить список");
+    backupStatus.textContent = result.backups.length
+      ? "Архивов: " + result.backups.length + (result.truncated ? " · показаны последние 100" : "")
+      : "Резервных копий пока нет.";
+    for (const item of result.backups) {
+      const row = document.createElement("div");
+      row.className = "file";
+      const info = document.createElement("div");
+      const name = document.createElement("code");
+      name.textContent = item.backup;
+      const detail = document.createElement("div");
+      detail.textContent = item.created_at + " · " + Math.round(item.archive_bytes / 1024) + " КиБ";
+      info.append(name, detail);
+      const actions = document.createElement("div");
+      actions.className = "file-actions";
+      for (const [label, endpoint, verb] of [
+        ["Проверить", "api/backups/verify", "Проверка"],
+        ["Проверить восстановление", "api/backups/rehearse", "Тестовое восстановление"]
+      ]) {
+        const action = document.createElement("button");
+        action.type = "button";
+        action.className = "diff-button";
+        action.textContent = label;
+        action.addEventListener("click", async () => {
+          action.disabled = true;
+          backupStatus.textContent = verb + "…";
+          try {
+            const result = await backupRequest(endpoint, {backup:item.backup});
+            backupStatus.textContent = verb + " выполнено: " + result.file_count + " файлов · целостность подтверждена. Конфигурация HA не изменена.";
+          } catch (error) {
+            backupStatus.textContent = error.message || "Ошибка";
+            backupStatus.className = "error";
+          } finally {
+            action.disabled = false;
+          }
+        });
+        actions.append(action);
+      }
+      row.append(info, actions);
+      backupList.append(row);
+    }
+  } catch (error) {
+    backupStatus.textContent = error.message || "Ошибка";
+    backupStatus.className = "error";
+  } finally {
+    backupRefresh.disabled = false;
+  }
+}
+backupCreate.addEventListener("click", async () => {
+  if (!window.confirm("Сохранить копию всех управляемых файлов в /data приложения? Конфигурация Home Assistant не изменится.")) return;
+  backupCreate.disabled = true;
+  backupStatus.className = "";
+  backupStatus.textContent = "Создаём и проверяем архив…";
+  try {
+    const result = await backupRequest("api/backups/create", {});
+    await loadBackups();
+    backupStatus.textContent = "Создана и проверена копия " + result.backup + " · " + result.file_count + " файлов.";
+  } catch (error) {
+    backupStatus.textContent = error.message || "Не удалось создать копию";
+    backupStatus.className = "error";
+  } finally {
+    backupCreate.disabled = false;
+  }
+});
+backupRefresh.addEventListener("click", loadBackups);
+loadBackups();

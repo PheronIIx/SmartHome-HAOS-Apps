@@ -1,7 +1,7 @@
-name: SmartHome Deploy (read-only preview)
-version: 0.4.0
+name: SmartHome Deploy
+version: 0.5.0
 slug: smarthome_deploy
-description: "Read-only compare and deployment planning. Backup/restore library in test mode; no UI actions."
+description: "Read-only Home Assistant comparison with local snapshots and isolated restore rehearsals."
 arch:
   - amd64
   - aarch64
