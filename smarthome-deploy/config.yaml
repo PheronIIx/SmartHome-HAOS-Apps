@@ -1,0 +1,27 @@
+name: SmartHome Deploy (read-only preview)
+version: 0.1.0
+slug: smarthome_deploy
+description: "Compare managed Home Assistant files with a pinned GitHub commit. No deployment actions."
+arch:
+  - amd64
+  - aarch64
+init: false
+startup: application
+boot: manual
+ingress: true
+ingress_port: 8099
+panel_icon: mdi:source-branch
+panel_title: SmartHome Deploy
+panel_admin: true
+map:
+  - type: homeassistant_config
+    read_only: true
+    path: /homeassistant
+options:
+  repository: PheronIIx/SmartHome
+  branch: main
+  github_token: ""
+schema:
+  repository: str
+  branch: str
+  github_token: password
