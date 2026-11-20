@@ -479,3 +479,99 @@ deployPrepare.addEventListener("click", async () => {
 });
 deployRefresh.addEventListener("click", loadDeployHistory);
 loadDeployHistory();
+
+
+// 0.10.0: minimal JS-only batch operations in the add-on Ingress.
+const batchPrepare = document.getElementById("batch-prepare");
+const batchRefresh = document.getElementById("batch-refresh");
+const batchStatus = document.getElementById("batch-status");
+const batchPreview = document.getElementById("batch-preview");
+const batchHistory = document.getElementById("batch-history");
+
+function batchMessage(message, isError = false) {
+  batchStatus.textContent = message;
+  batchStatus.className = isError ? "error" : "";
+}
+
+async function loadBatchHistory() {
+  batchRefresh.disabled = true;
+  batchHistory.replaceChildren();
+  try {
+    const response = await fetch("api/multifile/history", {cache:"no-store"});
+    const result = await readBackupJson(response);
+    if (!response.ok) throw new Error(result.error || "Не удалось прочитать журнал");
+    const operations = result.operations || [];
+    if (!operations.length) { batchHistory.textContent = "JS-установок пока нет."; return; }
+    for (const op of operations) {
+      const row = document.createElement("div");
+      row.className = "file";
+      const info = document.createElement("div");
+      const heading = document.createElement("code");
+      heading.textContent = op.id + " · " + op.status;
+      const detail = document.createElement("div");
+      detail.textContent = op.paths.join(", ") + " · GitHub " + op.target_commit.slice(0, 12);
+      info.append(heading, detail);
+      row.append(info);
+      if (["installed", "installing", "needs_attention"].includes(op.status)) {
+        const restore = document.createElement("button");
+        restore.type = "button";
+        restore.textContent = "Откат";
+        restore.addEventListener("click", async () => {
+          if (!window.confirm("Восстановить исходные JS-файлы для операции " + op.id + "? Текущие изменения могут блокировать откат.")) return;
+          restore.disabled = true;
+          try {
+            const out = await backupRequest("api/multifile/rollback", {operation_id:op.id, confirmation:"ROLLBACK JS BATCH"});
+            batchMessage("Откат: " + out.status + " · " + out.id);
+            await loadBatchHistory();
+          } catch (error) { batchMessage(error.message || "Ошибка отката", true); }
+          finally { restore.disabled = false; }
+        });
+        row.append(restore);
+      }
+      batchHistory.append(row);
+    }
+  } catch (error) { batchMessage(error.message || "Ошибка истории", true); }
+  finally { batchRefresh.disabled = false; }
+}
+
+batchPrepare.addEventListener("click", async () => {
+  batchPrepare.disabled = true;
+  batchPreview.replaceChildren();
+  batchMessage("Проверяем GitHub, локальные файлы и манифест…");
+  try {
+    const plan = await backupRequest("api/multifile/prepare", {});
+    batchMessage("Готово к проверке: " + plan.files.length + " JS · коммит " + plan.target_commit.slice(0, 12) + " · план действует 5 минут.");
+    const list = document.createElement("div");
+    for (const item of plan.files) {
+      const row = document.createElement("div");
+      row.className = "file";
+      const path = document.createElement("code");
+      path.textContent = item.path;
+      const info = document.createElement("small");
+      info.textContent = "SHA-256 HA: " + item.before_sha256.slice(0, 12) + "… → GitHub: " + item.after_sha256.slice(0, 12) + "…";
+      row.append(path, info);
+      list.append(row);
+    }
+    const install = document.createElement("button");
+    install.type = "button";
+    install.textContent = "Установить показанные JS-файлы";
+    install.addEventListener("click", async () => {
+      if (!window.confirm("Установить ровно " + plan.files.length + " JS из коммита " + plan.target_commit.slice(0, 12) + "? Перед записью будет создана и проверена резервная копия.")) return;
+      install.disabled = true;
+      batchMessage("Проверяем план и выполняем транзакционную установку…");
+      try {
+        const out = await backupRequest("api/multifile/install", {plan_id:plan.plan_id, confirmation:"INSTALL JS BATCH"});
+        batchMessage("Установлено: " + out.paths.join(", ") + " · операция " + out.id);
+        batchPreview.replaceChildren();
+        await loadBatchHistory();
+      } catch (error) {
+        batchMessage((error.message || "Установка не выполнена") + ". Проверьте историю и журнал приложения.", true);
+        await loadBatchHistory();
+      } finally { install.disabled = false; }
+    });
+    batchPreview.append(list, install);
+  } catch (error) { batchMessage(error.message || "JS-обновление недоступно", true); }
+  finally { batchPrepare.disabled = false; }
+});
+batchRefresh.addEventListener("click", loadBatchHistory);
+loadBatchHistory();
