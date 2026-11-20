@@ -4,7 +4,7 @@ import json
 import os
 import secrets
 import hmac
-from . import backup_service, baseline, deploy, sync_plan
+from . import backup_service, baseline, deploy, sync_plan, sync_preflight
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs, urlsplit
@@ -68,6 +68,15 @@ class Handler(BaseHTTPRequestHandler):
             except Exception as error:
                 print("SmartHome Deploy sync plan failed:", type(error).__name__, str(error), flush=True)
                 self._send(503, "application/json", json.dumps({"error": "Sync plan failed"}).encode())
+        elif path == "/api/sync/preflight":
+            try:
+                payload = sync_preflight.prepare_preflight()
+                self._send(200, "application/json", json.dumps(payload, ensure_ascii=False).encode())
+            except ValueError as error:
+                self._send(400, "application/json", json.dumps({"error": str(error)}, ensure_ascii=False).encode())
+            except Exception as error:
+                print("SmartHome Deploy preflight failed:", type(error).__name__, str(error), flush=True)
+                self._send(503, "application/json", json.dumps({"error": "Предустановочная проверка не выполнена. См. журнал приложения."}, ensure_ascii=False).encode())
         elif path == "/api/sync/diff":
             args = parse_qs(parsed.query, keep_blank_values=True)
             if set(args) != {"path", "commit"} or len(args["path"]) != 1 or len(args["commit"]) != 1:
