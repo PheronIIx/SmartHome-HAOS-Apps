@@ -204,6 +204,72 @@ baselineInit.addEventListener("click",async()=>{
   finally{baselineInit.disabled=false;}
 });
 syncCheck.addEventListener("click",loadSyncPlan);
+const preflightCheck = document.getElementById("preflight-check");
+const preflightStatus = document.getElementById("preflight-status");
+const preflightFiles = document.getElementById("preflight-files");
+
+preflightCheck.addEventListener("click", async () => {
+  preflightCheck.disabled = true;
+  preflightStatus.className = "";
+  preflightStatus.textContent = "Проверяем файлы, SHA-256 и ограничения безопасности…";
+  preflightFiles.replaceChildren();
+  try {
+    const response = await fetch("api/sync/preflight", {cache:"no-store"});
+    const data = await readBackupJson(response);
+    if (!response.ok) throw new Error(data.error || "Не удалось подготовить предварительный план");
+    if (!data.configured) {
+      preflightStatus.textContent = data.message || "Сначала инициализируйте манифест.";
+      return;
+    }
+    const c = data.counts;
+    preflightStatus.textContent = "GitHub " + data.target_commit.slice(0, 12)
+      + " · обновить: " + c.update + " · добавить: " + c.add
+      + " · удаления на проверку: " + c.delete_review
+      + " · блокировки: " + c.blocked
+      + " · пропустить: " + c.skip
+      + " · YAML-проверка: " + (data.requires_yaml_validation ? "необходима" : "не требуется")
+      + " · полный бэкап HAOS: " + (data.requires_fresh_full_haos_backup ? "необходим" : "не требуется")
+      + " · установка отключена";
+    const summary = document.createElement("p");
+    const fingerprint = data.plan_fingerprint;
+    summary.textContent = "Отпечаток плана: " + fingerprint.slice(0, 20)
+      + "… · Это диагностический отпечаток, а не разрешение на установку.";
+    preflightFiles.append(summary);
+    const names = {
+      update:"Кандидат на обновление", add:"Новый файл", delete_review:"Удаление — отдельное согласование",
+      blocked:"Заблокирован", skip:"Не требуется"
+    };
+    for (const item of data.files) {
+      if (item.disposition === "skip") continue;
+      const row = document.createElement("div");
+      row.className = "file";
+      const info = document.createElement("div");
+      const path = document.createElement("code");
+      path.textContent = item.path;
+      const description = document.createElement("div");
+      description.textContent = (names[item.disposition] || item.disposition)
+        + " · " + item.risk + " · " + item.source_action
+        + (item.snapshot_error ? " · локальная проверка: " + item.snapshot_error : "");
+      const hashes = document.createElement("small");
+      hashes.textContent = "HA SHA-256: " + (item.local?.sha256 || "отсутствует/не проверен")
+        + " · GitHub SHA-256: " + (item.target_sha256 || "не применимо");
+      info.append(path, description, hashes);
+      row.append(info);
+      preflightFiles.append(row);
+    }
+    if (!data.files.some(item => item.disposition !== "skip")) {
+      const empty = document.createElement("p");
+      empty.textContent = "Файлов, требующих действий, нет.";
+      preflightFiles.append(empty);
+    }
+  } catch (error) {
+    preflightStatus.textContent = error.message || "Предустановочная проверка не выполнена";
+    preflightStatus.className = "error";
+  } finally {
+    preflightCheck.disabled = false;
+  }
+});
+
 const backupCreate = document.getElementById("backup-create");
 const backupRefresh = document.getElementById("backup-refresh");
 const backupStatus = document.getElementById("backup-status");

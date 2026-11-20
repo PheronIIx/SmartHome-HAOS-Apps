@@ -1,7 +1,7 @@
 name: SmartHome Deploy
-version: 0.7.2
+version: 0.8.0
 slug: smarthome_deploy
-description: "Per-file installed baseline and read-only multi-file sync planning; test install remains restricted."
+description: "Multi-file preflight with pinned Git SHA and verified local hashes; HA installation disabled."
 arch:
   - amd64
   - aarch64

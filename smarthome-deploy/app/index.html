@@ -12,6 +12,11 @@ button{padding:10px 15px;border-radius:9px;border:1px solid color-mix(in srgb,Ca
 <div class="top"><div><h2>SmartHome Deploy</h2><small>План синхронизации GitHub → HA · многофайловая установка пока отключена</small></div><button id="refresh" type="button">Проверить</button></div>
 <div class="card"><div id="summary" role="status" aria-live="polite">Нажмите «Проверить».</div><small id="version"></small></div>
 <div class="card"><h3>База установленной версии</h3><p><small>Однократная инициализация сохраняет манифест в <code>/data</code>. HA-файлы не изменяются. Новые пути allowlist принимаются в базу только при совпадении с GitHub.</small></p><button id="baseline-init" type="button">Инициализировать манифест</button> <button id="sync-check" type="button">Проверить обновления</button><div id="sync-status" role="status" aria-live="polite"></div><div id="sync-files"></div></div>
+<div class="card"><h3>Предустановочная проверка · 0.8.0</h3>
+<p><small>Снимок контрольных сумм, список конфликтов и требования безопасности для будущей многофайловой установки. Только просмотр: запись и подтверждение установки отсутствуют.</small></p>
+<button id="preflight-check" type="button">Проверить набор обновлений</button>
+<p id="preflight-status" role="status" aria-live="polite">Проверка ещё не запускалась.</p>
+<div id="preflight-files"></div></div>
 <div class="card"><h3>Тестовая установка 0.6.0</h3>
 <p><small>Разрешено только добавление проверенного комментария в <code>www/house-card.js</code>. Перед записью создаётся и проверяется резервная копия. Включается отдельно в настройках приложения.</small></p>
 <button id="deploy-prepare" type="button">Подготовить тестовую установку</button>
@@ -21,5 +26,5 @@ button{padding:10px 15px;border-radius:9px;border:1px solid color-mix(in srgb,Ca
 <div id="deploy-history"></div></div>
 <div class="card"><h3>Резервные копии</h3><p><small>Сохраняются в каталоге данных приложения. Не заменяют полный бэкап HAOS. Восстановление только в тестовую папку, без записи в Home Assistant.</small></p><button id="backup-create" type="button">Создать резервную копию</button> <button id="backup-refresh" type="button">Обновить список</button><p id="backup-status" role="status" aria-live="polite">Список ещё не загружен.</p><div id="backup-list"></div></div>
 <div class="card"><h3>Управляемые файлы</h3><div id="files">Пока нет результатов.</div></div>
-<p><small>В версии 0.7.0 манифест и план синхронизации работают только на чтение. Единственная запись в HA остаётся отдельной тестовой операцией 0.6.0 для house-card.js.</small></p>
+<p><small>В версии 0.8.0 многофайловая предустановочная проверка работает только на чтение. Единственная запись в HA остаётся отдельной тестовой операцией 0.6.0 для house-card.js.</small></p>
 </main><script src="app.js" defer></script></body></html>
