@@ -60,6 +60,8 @@ class ManifestTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             root=Path(directory)
             (root/"dashboards").mkdir()
+            (root/"www").mkdir()
+            (root/"www"/"house-card.js").write_text("baseline\n")
             (root/"dashboards"/"server.yaml").write_text("local: edit\n")
             remote=b"server: true\n"
             sha=blob(remote)
@@ -73,7 +75,7 @@ class ManifestTests(unittest.TestCase):
                     tree_id = "c"*40 if commit_id == "a"*40 else "d"*40
                     return {"sha":commit_id,"commit":{"tree":{"sha":tree_id}}}
                 if "/git/trees/" in path:
-                    entries = [{"type":"blob","path":"home-assistant/dashboards/server.yaml","sha":sha}] if "d"*40 in path else []
+                    entries = ([{"type":"blob","path":"home-assistant/www/house-card.js","sha":sha}] if "c"*40 in path else [{"type":"blob","path":"home-assistant/dashboards/server.yaml","sha":sha}])
                     return {"truncated":False,"tree":entries}
                 if "/git/blobs/" in path:
                     return {"encoding":"base64","size":len(remote),"content":base64.b64encode(remote).decode()}
