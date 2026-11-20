@@ -1,7 +1,7 @@
 name: SmartHome Deploy
-version: 0.8.0
+version: 0.9.0
 slug: smarthome_deploy
-description: "Multi-file preflight with pinned Git SHA and verified local hashes; HA installation disabled."
+description: "Internal JS batch transaction tests; no multi-file install HTTP endpoints or UI."
 arch:
   - amd64
   - aarch64
