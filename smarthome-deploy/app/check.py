@@ -22,21 +22,24 @@ MAX_LOCAL_FILE_BYTES = 8 * 1024 * 1024
 MAX_DIFF_BYTES = 256 * 1024
 MAX_DIFF_LINES = 2500
 
+# Exact server-side allowlist. New repository files are not managed until
+# this list is reviewed and changed in a release.
+MANAGED_PATHS = frozenset({
+    "configuration.yaml", "automations.yaml", "scripts.yaml", "scenes.yaml",
+    "packages/dacha.yaml", "packages/g45.yaml", "packages/infra.yaml",
+    "packages/notify.yaml", "packages/scenarios.yaml",
+    "www/cctv-cards.js", "www/dacha-sky-card.js", "www/dacha-tiles.js",
+    "www/house-card.js", "www/house-dash.js", "www/plans/g45.json",
+    "dashboards/server.yaml",
+})
+
+
 def managed_path(repository_path: str) -> str | None:
     prefix = "home-assistant/"
-    if not repository_path.startswith(prefix):
+    if not isinstance(repository_path, str) or not repository_path.startswith(prefix):
         return None
     relative = repository_path[len(prefix):]
-    if relative in {"configuration.yaml", "automations.yaml", "scripts.yaml", "scenes.yaml"}:
-        return relative
-    parts = relative.split("/")
-    if len(parts) == 2 and parts[0] == "packages" and parts[1].endswith(".yaml"):
-        return relative
-    if len(parts) == 2 and parts[0] == "www" and parts[1].endswith(".js"):
-        return relative
-    if len(parts) == 3 and parts[0:2] == ["www", "plans"] and parts[2].endswith(".json"):
-        return relative
-    return None
+    return relative if relative in MANAGED_PATHS else None
 
 def safe_local_file(relative: str) -> Path:
     if not relative or Path(relative).is_absolute() or ".." in Path(relative).parts:
