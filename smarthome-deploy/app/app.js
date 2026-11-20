@@ -113,50 +113,93 @@ async function refresh() {
 button.addEventListener("click", refresh);
 refresh();
 
-const planButton = document.getElementById("prepare");
-const planSummary = document.getElementById("plan-summary");
-const planFiles = document.getElementById("plan-files");
-planButton.addEventListener("click", async () => {
-  planButton.disabled = true;
-  planSummary.textContent = "Проверяем базовую и целевую версии…";
-  planFiles.replaceChildren();
-  try {
-    const response = await fetch("api/plan", {cache: "no-store"});
-    const plan = await response.json();
-    if (!response.ok) throw new Error(plan.error || "Ошибка подготовки плана");
-    if (!plan.configured) {
-      planSummary.textContent = plan.message || "Не указан базовый коммит";
-      return;
-    }
-    const actions = {
-      no_change: "Без изменений",
-      candidate_review: "Кандидат на обновление · требуется подтверждение",
-      blocked_local_drift: "Блокировано · локальный файл не совпадает с базой",
-      new_file_review: "Новый файл · требуется ручная проверка",
-      deletion_review: "Удаление в GitHub · требуется ручная проверка"
-    };
-    planSummary.textContent = "База: " + plan.baseline.slice(0,12) + " · GitHub: " + plan.target.slice(0,12) + " · установка отключена";
-    for (const item of plan.files) {
-      const row = document.createElement("div");
-      row.className = "file";
-      const name = document.createElement("code");
-      name.textContent = item.path;
-      const status = document.createElement("span");
-      status.textContent = actions[item.action] || "Не определено";
-      status.className = item.action === "no_change" ? "ok" : "warn";
-      status.style.maxWidth = "55%";
-      status.style.whiteSpace = "normal";
-      row.append(name,status);
-      planFiles.append(row);
-    }
-  } catch (error) {
-    planSummary.textContent = error.message || "Ошибка подготовки плана";
-    planSummary.className = "error";
-  } finally {
-    planButton.disabled = false;
-  }
-});
+const baselineInit = document.getElementById("baseline-init");
+const syncCheck = document.getElementById("sync-check");
+const syncStatus = document.getElementById("sync-status");
+const syncFiles = document.getElementById("sync-files");
 
+function appendDiffSection(container, heading, result) {
+  const section = document.createElement("section");
+  const title = document.createElement("h4");
+  title.textContent = heading + " · " + (result.kind || "неизвестно");
+  section.append(title);
+  if (result.diff && result.diff.length) {
+    const pre = document.createElement("pre");
+    for (const line of result.diff) {
+      const el = document.createElement("span");
+      el.className = line.startsWith("+") && !line.startsWith("+++") ? "diff-add"
+        : line.startsWith("-") && !line.startsWith("---") ? "diff-remove" : "diff-context";
+      el.textContent = line + "\n";
+      pre.append(el);
+    }
+    section.append(pre);
+  }
+  if (result.truncated) {
+    const note = document.createElement("p");
+    note.textContent = "Diff ограничен первыми 2500 строками.";
+    section.append(note);
+  }
+  container.append(section);
+}
+
+async function loadSyncPlan() {
+  syncCheck.disabled = true;
+  syncStatus.className = "";
+  syncStatus.textContent = "Сверяем манифест с GitHub main…";
+  syncFiles.replaceChildren();
+  try {
+    const response = await fetch("api/sync/plan", {cache:"no-store"});
+    const result = await readBackupJson(response);
+    if (!response.ok) throw new Error(result.error || "Ошибка плана синхронизации");
+    if (!result.configured) { syncStatus.textContent = result.message || "Сначала инициализируйте манифест."; return; }
+    const t = result.totals;
+    syncStatus.textContent = "Установленная база: " + result.baseline_files + " файлов · GitHub: " + result.target.slice(0,12)
+      + " · обновления: " + (t.candidate_review + t.new_file_review + t.new_file_conflict + t.deletion_review)
+      + " · локальные конфликты: " + (t.blocked_local_drift + t.new_file_conflict) + " · установка отключена";
+    const labels = {no_change:"Без изменений",candidate_review:"Обновление",blocked_local_drift:"Конфликт локальной версии",
+      new_file_review:"Новый файл (HA отсутствует)",new_file_present:"Новый путь уже совпадает с GitHub",
+      new_file_conflict:"Новый путь: локальный файл требует проверки",deletion_review:"Файл удалён из GitHub"};
+    for (const item of result.files) {
+      const row=document.createElement("div"); row.className="file";
+      const name=document.createElement("code"); name.textContent=item.path;
+      const status=document.createElement("span"); status.textContent=(labels[item.action]||item.action)+" · "+item.local;
+      status.className=item.action==="no_change"||item.action==="new_file_present"?"ok":"warn";
+      const actions=document.createElement("div"); actions.className="file-actions"; actions.append(status);
+      if(item.action!=="no_change"){
+        const button=document.createElement("button"); button.type="button"; button.className="diff-button"; button.textContent="Diff";
+        const details=document.createElement("div"); details.className="diff-details"; details.hidden=true;
+        button.addEventListener("click",async()=>{
+          if(!details.hidden){details.hidden=true;button.setAttribute("aria-expanded","false");return;}
+          details.hidden=false;button.setAttribute("aria-expanded","true");details.textContent="Загружаем diff…";button.disabled=true;
+          try{
+            const query=new URLSearchParams({path:item.path,commit:result.target});
+            const response=await fetch("api/sync/diff?"+query.toString(),{cache:"no-store"});
+            const data=await readBackupJson(response); if(!response.ok)throw new Error(data.error||"Не удалось получить diff");
+            details.replaceChildren();
+            if(data.baseline)appendDiffSection(details,"HA ↔ установленная база",data.baseline);
+            if(data.target)appendDiffSection(details,"HA ↔ GitHub main",data.target);
+          }catch(error){details.textContent=error.message||"Ошибка diff";}finally{button.disabled=false;}
+        });
+        actions.append(button); row.append(name,actions); syncFiles.append(row,details);
+      }else{row.append(name,actions);syncFiles.append(row);}
+    }
+    if(!result.files.length)syncFiles.textContent="Изменений в allowlist нет.";
+  }catch(error){syncStatus.textContent=error.message||"Ошибка проверки";syncStatus.className="error";}
+  finally{syncCheck.disabled=false;}
+}
+
+baselineInit.addEventListener("click",async()=>{
+  if(!window.confirm("Создать /data/installed-manifest.json из утверждённого baseline_commit? Файлы Home Assistant не будут изменены. Для новых путей будет принят только файл, совпадающий с GitHub."))return;
+  baselineInit.disabled=true;syncStatus.className="";syncStatus.textContent="Проверяем базовый коммит и локальные файлы…";
+  try{
+    const result=await backupRequest("api/baseline/initialize",{confirmation:"INITIALIZE MANIFEST"});
+    syncStatus.textContent="Манифест создан: "+result.file_count+" файлов. Новые пути приняты: "+result.adopted_new_paths.length
+      +"; локальные расхождения новых путей: "+result.untracked_local_paths.length+"; отсутствуют: "+result.untracked_missing_paths.length+". HA не изменялся.";
+    await loadSyncPlan();
+  }catch(error){syncStatus.textContent=error.message||"Не удалось создать манифест";syncStatus.className="error";}
+  finally{baselineInit.disabled=false;}
+});
+syncCheck.addEventListener("click",loadSyncPlan);
 const backupCreate = document.getElementById("backup-create");
 const backupRefresh = document.getElementById("backup-refresh");
 const backupStatus = document.getElementById("backup-status");
