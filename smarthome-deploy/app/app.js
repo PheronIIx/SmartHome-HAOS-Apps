@@ -156,8 +156,8 @@ async function loadSyncPlan() {
     syncStatus.textContent = "Установленная база: " + result.baseline_files + " файлов · GitHub: " + result.target.slice(0,12)
       + " · обновления: " + (t.candidate_review + t.new_file_review + t.new_file_conflict + t.deletion_review)
       + " · только форматирование: " + t.format_only
-      + " · локальные конфликты: " + (t.blocked_local_drift + t.new_file_conflict + t.blocked_unverified)
-      + " · установка отключена";
+      + " · локальные конфликты: " + (t.blocked_local_drift + t.new_file_conflict)
+      + " · не удалось проверить: " + t.blocked_unverified + " · установка отключена";
     const labels = {no_change:"Без изменений",format_only:"Только форматирование · не требует обновления",
       candidate_review:"Обновление",blocked_local_drift:"Конфликт локальной версии",
       blocked_unverified:"Не удалось проверить · установка заблокирована",
