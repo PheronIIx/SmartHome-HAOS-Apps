@@ -43,8 +43,18 @@ class Handler(BaseHTTPRequestHandler):
     def do_GET(self) -> None:
         dev = os.environ.get("SMARTHOME_DEV_ALLOW_LOCAL") == "1"
         if not dev and self.client_address[0] != INGRESS_PROXY:
-            self._send(403, "application/json", json.dumps({"error": "Access denied or CSRF validation failed"}).encode())
+            self._send(403, "application/json", json.dumps({"error": "Access denied"}).encode())
             return
+        # Read-only API can expose HA configuration/diffs; enforce the same
+        # nominated admin identity as for mutations, even for direct Ingress URLs.
+        if not dev:
+            try:
+                authorized = authorized_admin_id(self.headers, load_options())
+            except (OSError, ValueError, TypeError):
+                authorized = False
+            if not authorized:
+                self._send(403, "application/json", b'{"error":"Admin access required"}')
+                return
         parsed = urlsplit(self.path)
         path = parsed.path
         if path in ("", "/", "/index.html"):
