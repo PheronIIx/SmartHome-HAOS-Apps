@@ -1,14 +1,15 @@
-"""Minimal ingress-only GET UI. No mutation or deployment endpoints."""
+"""Ingress-only admin-guarded UI and controlled deployment API."""
 from __future__ import annotations
 import json
 import os
 import secrets
 import hmac
+import re
 from . import backup_service, baseline, deploy, multifile, sync_plan, sync_preflight
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs, urlsplit
-from .check import check, file_diff
+from .check import check, file_diff, load_options
 from .plan import prepare_plan
 
 PORT = 8099
@@ -16,6 +17,27 @@ INGRESS_PROXY = "172.30.32.2"
 STATIC_DIR = Path(__file__).resolve().parent
 CSRF_TOKEN = secrets.token_urlsafe(32)
 MAX_REQUEST_BYTES = 2048
+ADMIN_ID_RE = re.compile(r"^[a-zA-Z0-9_-]{16,128}$")
+
+
+def authorized_admin_id(headers, options):
+    """Fail closed: only explicitly nominated HA admin user IDs may POST.
+
+    The Supervisor strips client-supplied X-Remote-User-Id and injects a trusted
+    identity for authenticated Ingress sessions. It does NOT supply admin role.
+    Owners must configure only HA admin IDs in add-on options.
+    """
+    raw = options.get("authorized_admin_user_ids", "")
+    if not isinstance(raw, str):
+        return False
+    ids = [part.strip() for part in raw.split(",")]
+    if not ids or any(not ADMIN_ID_RE.fullmatch(part) for part in ids):
+        return False
+    caller = headers.get("X-Remote-User-Id", "")
+    return isinstance(caller, str) and ADMIN_ID_RE.fullmatch(caller) is not None and any(
+        hmac.compare_digest(caller, admin_id) for admin_id in ids
+    )
+
 
 class Handler(BaseHTTPRequestHandler):
     def do_GET(self) -> None:
@@ -118,6 +140,16 @@ class Handler(BaseHTTPRequestHandler):
         if os.environ.get("SMARTHOME_DEV_ALLOW_LOCAL") != "1" and self.client_address[0] != INGRESS_PROXY:
             self._deny_post("ingress_proxy")
             return
+        # panel_admin restricts the sidebar, NOT every raw Ingress request.
+        # Never accept mutations from a merely logged-in non-admin session.
+        if os.environ.get("SMARTHOME_DEV_ALLOW_LOCAL") != "1":
+            try:
+                authorized = authorized_admin_id(self.headers, load_options())
+            except (OSError, ValueError, TypeError):
+                authorized = False
+            if not authorized:
+                self._deny_post("not_authorized_admin")
+                return
         parsed = urlsplit(self.path)
         if parsed.path not in ("/api/backups/create", "/api/backups/verify", "/api/backups/rehearse",
                                 "/api/baseline/initialize", "/api/deploy/prepare", "/api/deploy/install", "/api/deploy/rollback",
