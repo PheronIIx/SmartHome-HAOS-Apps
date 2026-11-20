@@ -111,7 +111,6 @@ async function refresh() {
   }
 }
 button.addEventListener("click", refresh);
-refresh();
 
 const baselineInit = document.getElementById("baseline-init");
 const syncCheck = document.getElementById("sync-check");
@@ -157,7 +156,7 @@ async function loadSyncPlan() {
       + " · обновления: " + (t.candidate_review + t.new_file_review + t.new_file_conflict + t.deletion_review)
       + " · только форматирование: " + t.format_only
       + " · локальные конфликты: " + (t.blocked_local_drift + t.new_file_conflict)
-      + " · не удалось проверить: " + t.blocked_unverified + " · установка отключена";
+      + " · не удалось проверить: " + t.blocked_unverified + " · JS-установка доступна только при явном включении";
     const labels = {no_change:"Без изменений",format_only:"Только форматирование · не требует обновления",
       candidate_review:"Обновление",blocked_local_drift:"Конфликт локальной версии",
       blocked_unverified:"Не удалось проверить · установка заблокирована",
@@ -203,7 +202,8 @@ baselineInit.addEventListener("click",async()=>{
   }catch(error){syncStatus.textContent=error.message||"Не удалось создать манифест";syncStatus.className="error";}
   finally{baselineInit.disabled=false;}
 });
-syncCheck.addEventListener("click",loadSyncPlan);
+syncCheck.addEventListener("click", () => { batchPreview.replaceChildren(); batchMessage(""); loadSyncPlan(); });
+loadSyncPlan();
 const preflightCheck = document.getElementById("preflight-check");
 const preflightStatus = document.getElementById("preflight-status");
 const preflightFiles = document.getElementById("preflight-files");
@@ -378,108 +378,6 @@ backupCreate.addEventListener("click", async () => {
 });
 backupRefresh.addEventListener("click", loadBackups);
 loadBackups();
-
-const deployPrepare = document.getElementById("deploy-prepare");
-const deployStatus = document.getElementById("deploy-status");
-const deployPreview = document.getElementById("deploy-preview");
-const deployRefresh = document.getElementById("deploy-refresh");
-const deployHistory = document.getElementById("deploy-history");
-
-async function loadDeployHistory() {
-  deployRefresh.disabled = true;
-  deployHistory.replaceChildren();
-  try {
-    const response = await fetch("api/deploy/history", {cache:"no-store"});
-    const data = await readBackupJson(response);
-    if (!response.ok) throw new Error(data.error || "Ошибка истории");
-    if (!data.operations.length) deployHistory.textContent = "Установок пока нет.";
-    for (const item of data.operations) {
-      const row = document.createElement("div");
-      row.className = "file";
-      const info = document.createElement("div");
-      const name = document.createElement("code");
-      name.textContent = item.id;
-      const detail = document.createElement("div");
-      detail.textContent = item.created_at + " · " + item.status + " · " + item.path;
-      info.append(name, detail);
-      row.append(info);
-      if (item.status === "installed") {
-        const undo = document.createElement("button");
-        undo.textContent = "Откатить";
-        undo.type = "button";
-        undo.addEventListener("click", async () => {
-          if (!window.confirm("Вернуть исходный house-card.js из архива? Перед откатом будет создана копия установленной версии.")) return;
-          undo.disabled = true;
-          deployStatus.textContent = "Проверяем архив и откатываем…";
-          try {
-            const result = await backupRequest("api/deploy/rollback", {
-              operation_id:item.id, confirmation:"ROLLBACK house-card.js"
-            });
-            deployStatus.textContent = "Откат: " + result.status + " · " + result.id;
-            await loadDeployHistory();
-            await loadBackups();
-          } catch (error) {
-            deployStatus.textContent = error.message || "Ошибка отката";
-            await loadDeployHistory();
-          } finally {
-            undo.disabled = false;
-          }
-        });
-        row.append(undo);
-      }
-      deployHistory.append(row);
-    }
-  } catch (error) {
-    deployHistory.textContent = error.message || "История недоступна";
-  } finally {
-    deployRefresh.disabled = false;
-  }
-}
-deployPrepare.addEventListener("click", async () => {
-  deployPrepare.disabled = true;
-  deployPreview.replaceChildren();
-  deployStatus.textContent = "Подготавливаем план с проверкой исходного файла…";
-  try {
-    const plan = await backupRequest("api/deploy/prepare", {});
-    deployStatus.textContent = "План действует 5 минут. Сверьте контрольные суммы.";
-    const description = document.createElement("p");
-    description.textContent = plan.path + " · GitHub " + plan.target_commit.slice(0,12);
-    const before = document.createElement("code");
-    before.textContent = "HA SHA-256: " + plan.local_sha256;
-    const after = document.createElement("p");
-    after.textContent = "Цель SHA-256: " + plan.target_sha256;
-    const install = document.createElement("button");
-    install.type = "button";
-    install.textContent = "Установить тестовый комментарий";
-    install.addEventListener("click", async () => {
-      if (!window.confirm("Подтвердить запись в house-card.js? Автоматический архив будет создан непосредственно перед заменой.")) return;
-      install.disabled = true;
-      deployStatus.textContent = "Создаём архив, проверяем и устанавливаем…";
-      try {
-        const result = await backupRequest("api/deploy/install", {
-          plan_id:plan.plan_id, confirmation:"INSTALL house-card.js"
-        });
-        deployStatus.textContent = "Установлено: " + result.id + " · архив " + result.backup;
-        deployPreview.replaceChildren();
-        await loadDeployHistory();
-        await loadBackups();
-      } catch (error) {
-        deployStatus.textContent = error.message || "Установка отклонена";
-        await loadDeployHistory();
-      } finally {
-        install.disabled = false;
-      }
-    });
-    deployPreview.append(description, before, after, install);
-  } catch (error) {
-    deployStatus.textContent = error.message || "Подготовка заблокирована";
-  } finally {
-    deployPrepare.disabled = false;
-  }
-});
-deployRefresh.addEventListener("click", loadDeployHistory);
-loadDeployHistory();
-
 
 // 0.10.0: minimal JS-only batch operations in the add-on Ingress.
 const batchPrepare = document.getElementById("batch-prepare");
