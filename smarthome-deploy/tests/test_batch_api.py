@@ -87,6 +87,27 @@ class JsBatchApiTests(unittest.TestCase):
             self.assertEqual(response.status, 403)
             operation.assert_not_called()
 
+    def test_read_only_api_also_rejects_nonadmin(self):
+        with patch.object(server, "load_options", return_value={
+            "authorized_admin_user_ids": ADMIN_ID
+        }), patch.dict("os.environ", {"SMARTHOME_DEV_ALLOW_LOCAL": "0"}), \
+             patch.object(server.sync_plan, "prepare_sync_plan") as operation:
+            handler = FakeHandler("/api/sync/plan", user_id=OTHER_ID)
+            handler.do_GET()
+            self.assertEqual(handler.status, 403)
+            operation.assert_not_called()
+
+    def test_read_only_api_allows_authorized_admin(self):
+        with patch.object(server, "load_options", return_value={
+            "authorized_admin_user_ids": ADMIN_ID
+        }), patch.dict("os.environ", {"SMARTHOME_DEV_ALLOW_LOCAL": "0"}), \
+             patch.object(server.sync_plan, "prepare_sync_plan", return_value={
+                 "configured":True, "files":[]
+             }):
+            handler = FakeHandler("/api/sync/plan", user_id=ADMIN_ID)
+            handler.do_GET()
+            self.assertEqual(handler.status, 200)
+
     def test_nonadmin_ingress_denied_even_with_csrf(self):
         with patch.object(server.multifile, "install") as operation:
             response = self.invoke("/api/multifile/install",
