@@ -106,7 +106,17 @@ def prepare_sync_plan() -> dict:
         elif new_sha == old["blob_sha"]:
             action = "no_change"
         else:
-            action = "candidate_review"
+            try:
+                old_bytes = check._load_blob_for_diff(repository, token, old["blob_sha"])
+                target_bytes = check._load_blob_for_diff(repository, token, new_sha)
+            except (ValueError, RuntimeError):
+                action = "blocked_unverified"
+            else:
+                action = (
+                    "format_only"
+                    if check._normalize_line_ends(old_bytes) == check._normalize_line_ends(target_bytes)
+                    else "candidate_review"
+                )
         rows.append({
             "path": relative, "action": action, "local": local,
             "baseline_sha": old["blob_sha"], "baseline_commit": old["source_commit"],
@@ -115,8 +125,9 @@ def prepare_sync_plan() -> dict:
 
     rows.sort(key=lambda item: item["path"])
     totals = {name: sum(row["action"] == name for row in rows) for name in (
-        "no_change", "candidate_review", "blocked_local_drift", "new_file_review",
-        "new_file_present", "new_file_conflict", "deletion_review",
+        "no_change", "format_only", "candidate_review", "blocked_local_drift",
+        "blocked_unverified", "new_file_review", "new_file_present",
+        "new_file_conflict", "deletion_review",
     )}
     return {
         "configured": True, "mode": "read-only-per-file-plan",
