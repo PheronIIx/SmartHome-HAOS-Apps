@@ -138,14 +138,14 @@ class BatchTests(unittest.TestCase):
             "files": [{"path": "packages/infra.yaml", "action": "candidate_review",
                        "local": "baseline_exact", "baseline_sha": SHA_C, "target_sha": SHA_D}]
         }):
-            with self.assertRaisesRegex(ValueError, "YAML"):
+            with self.assertRaisesRegex(ValueError, "Only safe JS"):
                 multifile.prepare()
         with patch.object(sync_plan, "prepare_sync_plan", return_value={
             "configured": True, "target": SHA_B,
             "files": [{"path": PATHS[0], "action": "deletion_review",
                        "local": "baseline_exact", "baseline_sha": SHA_C, "target_sha": None}]
         }):
-            with self.assertRaisesRegex(ValueError, "YAML"):
+            with self.assertRaisesRegex(ValueError, "Only safe JS"):
                 multifile.prepare()
 
     def test_unsafe_manifest_change_blocks_install(self):
@@ -224,8 +224,8 @@ class BatchTests(unittest.TestCase):
     def test_mixed_add_and_update_rolls_back_both_on_failure(self):
         path, _ = self._new_js_plan(mixed=True)
         preview = multifile.prepare()
-        original_replace = multifile._replace
-        with patch.object(multifile, "_replace", side_effect=OSError("injected update failure")):
+        # Force failure after BOTH JS files have been written, before manifest update.
+        with patch.object(baseline, "_atomic_write", side_effect=OSError("injected manifest failure")):
             with self.assertRaisesRegex(RuntimeError, "installation failed"):
                 multifile.install(preview["plan_id"], "INSTALL JS BATCH")
         self.assertFalse((self.ha / path).exists())
