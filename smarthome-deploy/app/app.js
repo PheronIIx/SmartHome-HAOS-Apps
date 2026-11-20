@@ -155,17 +155,21 @@ async function loadSyncPlan() {
     const t = result.totals;
     syncStatus.textContent = "Установленная база: " + result.baseline_files + " файлов · GitHub: " + result.target.slice(0,12)
       + " · обновления: " + (t.candidate_review + t.new_file_review + t.new_file_conflict + t.deletion_review)
-      + " · локальные конфликты: " + (t.blocked_local_drift + t.new_file_conflict) + " · установка отключена";
-    const labels = {no_change:"Без изменений",candidate_review:"Обновление",blocked_local_drift:"Конфликт локальной версии",
+      + " · только форматирование: " + t.format_only
+      + " · локальные конфликты: " + (t.blocked_local_drift + t.new_file_conflict + t.blocked_unverified)
+      + " · установка отключена";
+    const labels = {no_change:"Без изменений",format_only:"Только форматирование · не требует обновления",
+      candidate_review:"Обновление",blocked_local_drift:"Конфликт локальной версии",
+      blocked_unverified:"Не удалось проверить · установка заблокирована",
       new_file_review:"Новый файл (HA отсутствует)",new_file_present:"Новый путь уже совпадает с GitHub",
       new_file_conflict:"Новый путь: локальный файл требует проверки",deletion_review:"Файл удалён из GitHub"};
     for (const item of result.files) {
       const row=document.createElement("div"); row.className="file";
       const name=document.createElement("code"); name.textContent=item.path;
       const status=document.createElement("span"); status.textContent=(labels[item.action]||item.action)+" · "+item.local;
-      status.className=item.action==="no_change"||item.action==="new_file_present"?"ok":"warn";
+      status.className=["no_change","format_only","new_file_present"].includes(item.action)?"ok":"warn";
       const actions=document.createElement("div"); actions.className="file-actions"; actions.append(status);
-      if(item.action!=="no_change"){
+      if(!["no_change","format_only"].includes(item.action)){
         const button=document.createElement("button"); button.type="button"; button.className="diff-button"; button.textContent="Diff";
         const details=document.createElement("div"); details.className="diff-details"; details.hidden=true;
         button.addEventListener("click",async()=>{
