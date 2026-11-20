@@ -446,7 +446,9 @@ batchPrepare.addEventListener("click", async () => {
       const path = document.createElement("code");
       path.textContent = item.path;
       const info = document.createElement("small");
-      info.textContent = "SHA-256 HA: " + item.before_sha256.slice(0, 12) + "… → GitHub: " + item.after_sha256.slice(0, 12) + "…";
+      info.textContent = item.action === "add"
+        ? "Новый файл · GitHub SHA-256: " + item.after_sha256.slice(0, 12) + "…"
+        : "Обновление · SHA-256 HA: " + item.before_sha256.slice(0, 12) + "… → GitHub: " + item.after_sha256.slice(0, 12) + "…";
       row.append(path, info);
       list.append(row);
     }
