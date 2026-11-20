@@ -4,7 +4,7 @@ import json
 import os
 import secrets
 import hmac
-from . import backup_service, baseline, deploy, sync_plan, sync_preflight
+from . import backup_service, baseline, deploy, multifile, sync_plan, sync_preflight
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs, urlsplit
@@ -31,6 +31,12 @@ class Handler(BaseHTTPRequestHandler):
             self._send(200, "text/javascript; charset=utf-8", (STATIC_DIR / "app.js").read_bytes())
         elif path == "/api/security":
             self._send(200, "application/json", json.dumps({"csrf_token": CSRF_TOKEN}).encode())
+        elif path == "/api/multifile/history":
+            try:
+                self._send(200, "application/json", json.dumps(multifile.history()).encode())
+            except Exception as error:
+                print("JS batch history failed:", type(error).__name__, str(error), flush=True)
+                self._send(503, "application/json", b'{"error":"JS batch history unavailable"}')
         elif path == "/api/deploy/history":
             try:
                 self._send(200, "application/json", json.dumps(deploy.history()).encode())
@@ -114,7 +120,8 @@ class Handler(BaseHTTPRequestHandler):
             return
         parsed = urlsplit(self.path)
         if parsed.path not in ("/api/backups/create", "/api/backups/verify", "/api/backups/rehearse",
-                                "/api/baseline/initialize", "/api/deploy/prepare", "/api/deploy/install", "/api/deploy/rollback"):
+                                "/api/baseline/initialize", "/api/deploy/prepare", "/api/deploy/install", "/api/deploy/rollback",
+                                "/api/multifile/prepare", "/api/multifile/install", "/api/multifile/rollback"):
             self.send_error(404)
             return
         # Ingress may strip Sec-Fetch-Site or relay a same-site context.
@@ -142,7 +149,19 @@ class Handler(BaseHTTPRequestHandler):
             body = json.loads(self.rfile.read(length))
             if not isinstance(body, dict):
                 raise ValueError("Expected JSON object")
-            if parsed.path == "/api/baseline/initialize":
+            if parsed.path == "/api/multifile/prepare":
+                if body:
+                    raise ValueError("Unexpected batch preview parameters")
+                payload = multifile.prepare()
+            elif parsed.path == "/api/multifile/install":
+                if set(body) != {"plan_id", "confirmation"} or not isinstance(body["plan_id"], str) or not isinstance(body["confirmation"], str):
+                    raise ValueError("Invalid JS batch install request")
+                payload = multifile.install(body["plan_id"], body["confirmation"])
+            elif parsed.path == "/api/multifile/rollback":
+                if set(body) != {"operation_id", "confirmation"} or not isinstance(body["operation_id"], str) or not isinstance(body["confirmation"], str):
+                    raise ValueError("Invalid JS batch rollback request")
+                payload = multifile.rollback(body["operation_id"], body["confirmation"])
+            elif parsed.path == "/api/baseline/initialize":
                 if set(body) != {"confirmation"} or not isinstance(body["confirmation"], str):
                     raise ValueError("Invalid baseline initialization request")
                 payload = baseline.initialize_manifest(body["confirmation"])
@@ -173,8 +192,8 @@ class Handler(BaseHTTPRequestHandler):
         except ValueError as error:
             self._send(400, "application/json", json.dumps({"error": str(error)}, ensure_ascii=False).encode())
         except Exception as error:
-            print("Backup operation failed:", type(error).__name__, str(error), flush=True)
-            self._send(503, "application/json", b'{"error":"Backup operation failed; see app log"}')
+            print("SmartHome POST operation failed:", type(error).__name__, str(error), flush=True)
+            self._send(503, "application/json", b'{"error":"Operation failed; inspect app history and log"}')
 
     def _deny_post(self, reason: str) -> None:
         # Fixed rejection code only; never log credentials or request headers.
