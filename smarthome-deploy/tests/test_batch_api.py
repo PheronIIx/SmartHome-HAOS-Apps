@@ -6,10 +6,13 @@ from unittest.mock import patch
 
 from app import server
 
+ADMIN_ID = "a" * 32
+OTHER_ID = "b" * 32
+
 
 class FakeHandler(server.Handler):
     def __init__(self, path, payload=None, *, token=None, address=server.INGRESS_PROXY,
-                 content_type="application/json", fetch_site="same-origin"):
+                 content_type="application/json", fetch_site="same-origin", user_id=ADMIN_ID):
         self.path = path
         self.client_address = (address, 12345)
         self.headers = {
@@ -17,6 +20,7 @@ class FakeHandler(server.Handler):
             "Content-Length": str(len(json.dumps(payload or {}).encode())),
             "X-CSRF-Token": token if token is not None else server.CSRF_TOKEN,
             "Sec-Fetch-Site": fetch_site,
+            "X-Remote-User-Id": user_id,
         }
         self.rfile = io.BytesIO(json.dumps(payload or {}).encode())
         self.status = None
@@ -33,7 +37,8 @@ class FakeHandler(server.Handler):
 class JsBatchApiTests(unittest.TestCase):
     def invoke(self, path, body=None, **kwargs):
         handler = FakeHandler(path, body, **kwargs)
-        with patch.dict("os.environ", {"SMARTHOME_DEV_ALLOW_LOCAL": "0"}):
+        with patch.dict("os.environ", {"SMARTHOME_DEV_ALLOW_LOCAL": "0"}), \
+             patch.object(server, "load_options", return_value={"authorized_admin_user_ids": ADMIN_ID}):
             handler.do_POST()
         return handler
 
@@ -81,6 +86,26 @@ class JsBatchApiTests(unittest.TestCase):
                 {"plan_id": "abc", "confirmation": "INSTALL JS BATCH"}, fetch_site="cross-site")
             self.assertEqual(response.status, 403)
             operation.assert_not_called()
+
+    def test_nonadmin_ingress_denied_even_with_csrf(self):
+        with patch.object(server.multifile, "install") as operation:
+            response = self.invoke("/api/multifile/install",
+                {"plan_id":"abc", "confirmation":"INSTALL JS BATCH"}, user_id=OTHER_ID)
+            self.assertEqual(response.status, 403)
+            operation.assert_not_called()
+
+    def test_missing_user_id_denied(self):
+        with patch.object(server.multifile, "prepare") as operation:
+            response = self.invoke("/api/multifile/prepare", {}, user_id="")
+            self.assertEqual(response.status, 403)
+            operation.assert_not_called()
+
+    def test_admin_ids_default_to_deny(self):
+        self.assertFalse(server.authorized_admin_id({"X-Remote-User-Id":ADMIN_ID}, {}))
+        self.assertFalse(server.authorized_admin_id({"X-Remote-User-Id":ADMIN_ID},
+                         {"authorized_admin_user_ids":"invalid id"}))
+        self.assertTrue(server.authorized_admin_id({"X-Remote-User-Id":ADMIN_ID},
+                        {"authorized_admin_user_ids":OTHER_ID + ", " + ADMIN_ID}))
 
     def test_engine_gate_is_disabled_by_default(self):
         from app import multifile
