@@ -1,5 +1,5 @@
 name: SmartHome Deploy
-version: 0.10.0
+version: 1.0.0-rc.1
 slug: smarthome_deploy
 description: "Opt-in, JS-only controlled batch installation and rollback via HA Ingress."
 arch:
