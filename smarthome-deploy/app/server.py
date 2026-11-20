@@ -4,7 +4,7 @@ import json
 import os
 import secrets
 import hmac
-from . import backup_service
+from . import backup_service, deploy
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs, urlsplit
@@ -31,6 +31,12 @@ class Handler(BaseHTTPRequestHandler):
             self._send(200, "text/javascript; charset=utf-8", (STATIC_DIR / "app.js").read_bytes())
         elif path == "/api/security":
             self._send(200, "application/json", json.dumps({"csrf_token": CSRF_TOKEN}).encode())
+        elif path == "/api/deploy/history":
+            try:
+                self._send(200, "application/json", json.dumps(deploy.history()).encode())
+            except Exception as error:
+                print("Deploy history failed:", type(error).__name__, str(error), flush=True)
+                self._send(503, "application/json", b'{"error":"History unavailable"}')
         elif path == "/api/backups":
             try:
                 self._send(200, "application/json", json.dumps(backup_service.list_backups()).encode())
@@ -76,7 +82,8 @@ class Handler(BaseHTTPRequestHandler):
             self._deny_post("ingress_proxy")
             return
         parsed = urlsplit(self.path)
-        if parsed.path not in ("/api/backups/create", "/api/backups/verify", "/api/backups/rehearse"):
+        if parsed.path not in ("/api/backups/create", "/api/backups/verify", "/api/backups/rehearse",
+                                "/api/deploy/prepare", "/api/deploy/install", "/api/deploy/rollback"):
             self.send_error(404)
             return
         # Ingress may strip Sec-Fetch-Site or relay a same-site context.
@@ -104,7 +111,19 @@ class Handler(BaseHTTPRequestHandler):
             body = json.loads(self.rfile.read(length))
             if not isinstance(body, dict):
                 raise ValueError("Expected JSON object")
-            if parsed.path == "/api/backups/create":
+            if parsed.path == "/api/deploy/prepare":
+                if body:
+                    raise ValueError("Unexpected preview parameters")
+                payload = deploy.prepare()
+            elif parsed.path == "/api/deploy/install":
+                if set(body) != {"plan_id", "confirmation"}:
+                    raise ValueError("Invalid install request")
+                payload = deploy.install(body["plan_id"], body["confirmation"])
+            elif parsed.path == "/api/deploy/rollback":
+                if set(body) != {"operation_id", "confirmation"}:
+                    raise ValueError("Invalid rollback request")
+                payload = deploy.rollback(body["operation_id"], body["confirmation"])
+            elif parsed.path == "/api/backups/create":
                 if body:
                     raise ValueError("Unexpected create parameters")
                 payload = backup_service.create_manual_backup()

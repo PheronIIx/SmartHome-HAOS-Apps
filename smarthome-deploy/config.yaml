@@ -1,7 +1,7 @@
 name: SmartHome Deploy
-version: 0.5.3
+version: 0.6.0
 slug: smarthome_deploy
-description: "Read-only Home Assistant comparison with local snapshots and isolated restore rehearsals."
+description: "Controlled opt-in test install of house-card.js with verified backups and rollback."
 arch:
   - amd64
   - aarch64
@@ -15,15 +15,17 @@ panel_title: SmartHome Deploy
 panel_admin: true
 map:
   - type: homeassistant_config
-    read_only: true
+    read_only: false
     path: /homeassistant
 options:
   repository: PheronIIx/SmartHome
   branch: main
   baseline_commit: 8de108c40d4ffd0f10039fe4e7e9eec047494974
   github_token: ""
+  enable_test_install: false
 schema:
   repository: str
   branch: str
   github_token: password
+  enable_test_install: bool
   baseline_commit: str
