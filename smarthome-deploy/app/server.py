@@ -45,9 +45,11 @@ class Handler(BaseHTTPRequestHandler):
         if not dev and self.client_address[0] != INGRESS_PROXY:
             self._send(403, "application/json", json.dumps({"error": "Access denied"}).encode())
             return
-        # Read-only API can expose HA configuration/diffs; enforce the same
-        # nominated admin identity as for mutations, even for direct Ingress URLs.
-        if not dev:
+        parsed = urlsplit(self.path)
+        # Static UI itself contains no HA data. Allow it to load so a missing
+        # admin allowlist produces an actionable API error rather than a blank page.
+        # All GET APIs still require an explicitly authorized user identity.
+        if not dev and parsed.path not in ("", "/", "/index.html", "/app.js"):
             try:
                 authorized = authorized_admin_id(self.headers, load_options())
             except (OSError, ValueError, TypeError):
@@ -55,7 +57,6 @@ class Handler(BaseHTTPRequestHandler):
             if not authorized:
                 self._send(403, "application/json", b'{"error":"Admin access required"}')
                 return
-        parsed = urlsplit(self.path)
         path = parsed.path
         if path in ("", "/", "/index.html"):
             self._send(200, "text/html; charset=utf-8", (STATIC_DIR / "index.html").read_bytes())
