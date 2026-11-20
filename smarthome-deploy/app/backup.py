@@ -62,9 +62,9 @@ def _manifest_bytes(files: dict[str, bytes], source_commit: str) -> bytes:
                       ensure_ascii=False, separators=(",", ":"), sort_keys=True).encode("utf-8")
 
 
-def create_snapshot(paths: list[str], source_commit: str) -> dict:
+def create_snapshot(paths: list[str], source_commit: str, *, allow_empty: bool = False) -> dict:
     """Create an atomic zip backup from an explicit, strictly allowlisted file list."""
-    if not isinstance(paths, list) or not paths or len(paths) > MAX_FILES or len(set(paths)) != len(paths):
+    if not isinstance(paths, list) or (not paths and not allow_empty) or len(paths) > MAX_FILES or len(set(paths)) != len(paths):
         raise ValueError("Expected a unique, non-empty managed file list")
     if not isinstance(source_commit, str) or not re.fullmatch(r"[0-9a-f]{40}", source_commit):
         raise ValueError("An immutable source commit SHA is required")
@@ -108,7 +108,7 @@ def create_snapshot(paths: list[str], source_commit: str) -> dict:
             handle.unlink(missing_ok=True)
 
 
-def verify_snapshot(name: str) -> tuple[dict, dict[str, bytes]]:
+def verify_snapshot(name: str, *, allow_empty: bool = False) -> tuple[dict, dict[str, bytes]]:
     """Validate all archive entries and hashes without extracting paths."""
     if not isinstance(name, str) or not BACKUP_NAME.fullmatch(name):
         raise ValueError("Invalid backup identifier")
@@ -137,7 +137,7 @@ def verify_snapshot(name: str) -> tuple[dict, dict[str, bytes]]:
         expected = ["manifest.json"]
         data = {}
         total = 0
-        if not manifest["files"] or len(manifest["files"]) > MAX_FILES:
+        if (not manifest["files"] and not allow_empty) or len(manifest["files"]) > MAX_FILES:
             raise ValueError("Invalid number of files")
         for entry in manifest["files"]:
             if not isinstance(entry, dict):

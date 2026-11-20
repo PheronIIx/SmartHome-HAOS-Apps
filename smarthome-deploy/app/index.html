@@ -7,24 +7,34 @@ small{opacity:.7}.card{border:1px solid color-mix(in srgb,CanvasText 20%,transpa
 button{padding:10px 15px;border-radius:9px;border:1px solid color-mix(in srgb,CanvasText 30%,transparent);background:Canvas;color:CanvasText;cursor:pointer}
 .status{font-weight:600}.ok{color:#2d9d61}.warn{color:#c77e0d}.error{color:#c84343}
 .file{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:10px 0;border-top:1px solid color-mix(in srgb,CanvasText 14%,transparent);overflow-wrap:anywhere}
-.file code{font-size:.82rem}.file-actions{display:flex;gap:10px;align-items:center;flex-wrap:wrap;justify-content:flex-end}.diff-button{padding:6px 10px;font-size:.85rem}.diff-details{padding:12px;margin:0 0 8px;background:color-mix(in srgb,CanvasText 5%,Canvas);border-radius:8px;min-width:0}.diff-details pre{max-height:460px;overflow:auto;font:12px/1.5 ui-monospace,monospace;white-space:pre;tab-size:2}.diff-details p{font-size:.85rem}.diff-add{color:#248b51}.diff-remove{color:#c84343}.diff-context{opacity:.8}@media(max-width:500px){body{padding:10px}.file{align-items:flex-start;flex-wrap:wrap}.file-actions{width:100%;justify-content:space-between}}.file span{white-space:nowrap}p{line-height:1.5}
+.file code{font-size:.82rem}.file-actions{display:flex;gap:10px;align-items:center;flex-wrap:wrap;justify-content:flex-end}.diff-button{padding:6px 10px;font-size:.85rem}.diff-details{padding:12px;margin:0 0 8px;background:color-mix(in srgb,CanvasText 5%,Canvas);border-radius:8px;min-width:0}.diff-details pre{max-height:460px;overflow:auto;font:12px/1.5 ui-monospace,monospace;white-space:pre;tab-size:2}.diff-details p{font-size:.85rem}.diff-add{color:#248b51}.diff-remove{color:#c84343}.diff-context{opacity:.8}@media(max-width:500px){body{padding:10px}.file{align-items:flex-start;flex-wrap:wrap}.file-actions{width:100%;justify-content:space-between}}.file span{white-space:nowrap}p{line-height:1.5}details.card>summary{cursor:pointer;padding:2px 0}details.card>section{border-top:1px solid color-mix(in srgb,CanvasText 14%,transparent);padding-top:10px;margin-top:14px}details.card>section h3{margin-bottom:6px}.file-actions>button{flex:1}
 </style></head><body><main>
-<div class="top"><div><h2>SmartHome Deploy</h2><small>План синхронизации GitHub → HA · многофайловая установка пока отключена</small></div><button id="refresh" type="button">Проверить</button></div>
-<div class="card"><div id="summary" role="status" aria-live="polite">Нажмите «Проверить».</div><small id="version"></small></div>
-<div class="card"><h3>База установленной версии</h3><p><small>Однократная инициализация сохраняет манифест в <code>/data</code>. HA-файлы не изменяются. Новые пути allowlist принимаются в базу только при совпадении с GitHub.</small></p><button id="baseline-init" type="button">Инициализировать манифест</button> <button id="sync-check" type="button">Проверить обновления</button><div id="sync-status" role="status" aria-live="polite"></div><div id="sync-files"></div></div>
-<div class="card"><h3>Предустановочная проверка · 0.8.0</h3>
-<p><small>Снимок контрольных сумм, список конфликтов и требования безопасности для будущей многофайловой установки. Только просмотр: запись и подтверждение установки отсутствуют.</small></p>
-<button id="preflight-check" type="button">Проверить набор обновлений</button>
-<p id="preflight-status" role="status" aria-live="polite">Проверка ещё не запускалась.</p>
-<div id="preflight-files"></div></div>
-<div class="card"><h3>Тестовая установка 0.6.0</h3>
-<p><small>Разрешено только добавление проверенного комментария в <code>www/house-card.js</code>. Перед записью создаётся и проверяется резервная копия. Включается отдельно в настройках приложения.</small></p>
-<button id="deploy-prepare" type="button">Подготовить тестовую установку</button>
-<div id="deploy-status" role="status" aria-live="polite"></div>
-<div id="deploy-preview"></div>
-<h4>История установки и откат</h4><button id="deploy-refresh" type="button">Обновить историю</button>
-<div id="deploy-history"></div></div>
-<div class="card"><h3>Резервные копии</h3><p><small>Сохраняются в каталоге данных приложения. Не заменяют полный бэкап HAOS. Восстановление только в тестовую папку, без записи в Home Assistant.</small></p><button id="backup-create" type="button">Создать резервную копию</button> <button id="backup-refresh" type="button">Обновить список</button><p id="backup-status" role="status" aria-live="polite">Список ещё не загружен.</p><div id="backup-list"></div></div>
-<div class="card"><h3>Управляемые файлы</h3><div id="files">Пока нет результатов.</div></div>
-<p><small>В версии 0.8.0 многофайловая предустановочная проверка работает только на чтение. Единственная запись в HA остаётся отдельной тестовой операцией 0.6.0 для house-card.js.</small></p>
+<div class="top"><div><h2>SmartHome Deploy</h2><small>Обновления GitHub → Home Assistant</small></div></div>
+<div class="card"><h3>Обновления</h3>
+<p><small>Проверка сравнивает файлы с последней установленной версией. Установка доступна только для существующих и новых JS-файлов из точного allowlist в отдельно включённом тестовом режиме.</small></p>
+<div class="file-actions"><button id="sync-check" type="button">Проверить</button> <button id="batch-prepare" type="button">Обновить</button></div>
+<p id="sync-status" role="status" aria-live="polite">Проверка ещё не запускалась.</p>
+<div id="sync-files"></div>
+<div id="batch-status" role="status" aria-live="polite"></div><div id="batch-preview"></div>
+</div>
+<details class="card"><summary><strong>История и восстановление</strong></summary>
+<p><small>Здесь можно проверить результат операции и выполнить ручной откат при необходимости.</small></p>
+<button id="batch-refresh" type="button">Обновить историю</button><div id="batch-history"></div>
+</details>
+<p><small><strong>Доступ:</strong> панель ограничена администраторами Home Assistant настройкой <code>panel_admin: true</code>. Запросы проходят через HA Ingress; отдельной проверки роли в API приложения пока нет. Установка JS по умолчанию выключена.</small></p>
+<details class="card" id="diagnostics"><summary><strong>Диагностика</strong></summary>
+<p><small>Технические операции для первичной настройки и поиска ошибок. Для обычных обновлений не требуются.</small></p>
+<section><h3>Установленная база (манифест)</h3><p><small>Манифест хранит версии и SHA-256 ранее установленных файлов. Инициализация — разовая операция; не повторяйте её для обычных обновлений.</small></p>
+<button id="baseline-init" type="button">Инициализировать манифест</button></section>
+<section><h3>Подробная предустановочная проверка</h3><p><small>Read-only анализ SHA-256, рисков и блокировок. Сам по себе не разрешает запись.</small></p>
+<button id="preflight-check" type="button">Подробный анализ</button>
+<p id="preflight-status" role="status" aria-live="polite">Проверка ещё не запускалась.</p><div id="preflight-files"></div></section>
+<section><h3>Ручные резервные копии</h3><p><small>Архивы приложения не заменяют полный бэкап HAOS. Тестовое восстановление производится только в отдельный каталог. Перед JS-установкой архив создаётся и проверяется автоматически.</small></p>
+<button id="backup-create" type="button">Создать копию</button> <button id="backup-refresh" type="button">Список архивов</button>
+<p id="backup-status" role="status" aria-live="polite">Список ещё не загружен.</p><div id="backup-list"></div></section>
+<section><h3>Сравнение файлов (диагностика)</h3><button id="refresh" type="button">Сравнить с GitHub</button>
+<div id="summary" role="status" aria-live="polite"></div><small id="version"></small>
+<div id="files"></div></section>
+</details>
+<p><small>0.10.0: добавление новых JS разрешено только для отсутствующего пути из allowlist; YAML, JSON, удаление и локальные конфликты заблокированы. Управление через дашборд «Сервер» будет отдельным этапом.</small></p>
 </main><script src="app.js" defer></script></body></html>

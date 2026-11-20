@@ -1,7 +1,7 @@
 name: SmartHome Deploy
-version: 0.9.0
+version: 1.0.0-rc.1
 slug: smarthome_deploy
-description: "Internal JS batch transaction tests; no multi-file install HTTP endpoints or UI."
+description: "Opt-in, JS-only controlled batch installation and rollback via HA Ingress."
 arch:
   - amd64
   - aarch64
@@ -23,9 +23,11 @@ options:
   baseline_commit: 8de108c40d4ffd0f10039fe4e7e9eec047494974
   github_token: ""
   enable_test_install: false
+  enable_multifile_install: false
 schema:
   repository: str
   branch: str
   github_token: password
   enable_test_install: bool
+  enable_multifile_install: bool
   baseline_commit: str
