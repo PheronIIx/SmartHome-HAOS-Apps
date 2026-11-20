@@ -78,6 +78,7 @@ def _create(path, data):
                      0o600, dir_fd=folder)
         created = True
         try:
+            os.fchmod(fd, 0o644)
             with os.fdopen(fd, "wb") as stream:
                 stream.write(data)
                 stream.flush()
