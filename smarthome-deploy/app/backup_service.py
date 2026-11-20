@@ -9,7 +9,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 import threading
 
-from . import backup, check
+from . import backup, baseline, check
 
 _LOCK = threading.Lock()
 MAX_LISTED = 100
@@ -23,17 +23,52 @@ def create_manual_backup() -> dict:
         if not status.get("configured"):
             raise ValueError("GitHub configuration is not ready")
         rows = status["files"]
-        # Do not silently omit missing or unverified files: this backup is a
-        # complete snapshot of currently managed files, not a partial archive.
+        installed = baseline.load_manifest(check.load_options())
+        installed_paths = set(installed["files"]) if installed else set()
         allowed = {"same", "format_only", "modified"}
-        if not rows or any(row["status"] not in allowed for row in rows):
-            raise ValueError("Some managed files are absent or unverified; backup blocked")
-        paths = [row["path"] for row in rows]
-        result = backup.create_snapshot(paths, status["commit"])
+        paths, seen, skipped_uninstalled, blocked = set(), set(), [], []
+
+        for row in rows:
+            relative, state = row.get("path"), row.get("status")
+            if not isinstance(relative, str):
+                blocked.append("invalid managed path")
+                continue
+            seen.add(relative)
+            if state in allowed:
+                paths.add(relative)
+            elif state == "missing" and installed is not None and relative not in installed_paths:
+                skipped_uninstalled.append(relative)
+            elif state == "missing":
+                blocked.append(f"{relative} (missing; installed baseline is unknown or file was installed)")
+            else:
+                blocked.append(f"{relative} ({state or 'unknown'})")
+
+        # Keep previously installed files in the archive even if GitHub removed them.
+        for relative in sorted(installed_paths - seen):
+            try:
+                local = check.safe_local_file(relative)
+                if not local.exists():
+                    blocked.append(f"{relative} (missing installed file)")
+                elif not local.is_file():
+                    blocked.append(f"{relative} (not a regular file)")
+                else:
+                    paths.add(relative)
+            except (OSError, ValueError):
+                blocked.append(f"{relative} (local file cannot be verified)")
+
+        if blocked:
+            details = "; ".join(blocked[:10])
+            if len(blocked) > 10:
+                details += f"; and {len(blocked) - 10} more"
+            raise ValueError("Backup blocked; managed files need attention: " + details)
+        if not paths:
+            raise ValueError("No installed managed files are available to back up")
+        ordered_paths = sorted(paths)
+        result = backup.create_snapshot(ordered_paths, status["commit"])
         manifest, data = backup.verify_snapshot(result["backup"])
-        if len(data) != len(paths) or sorted(data) != sorted(paths):
+        if len(data) != len(ordered_paths) or sorted(data) != ordered_paths:
             raise RuntimeError("Snapshot verification does not match requested file list")
-        return {**result, "verified": True,
+        return {**result, "verified": True, "skipped_uninstalled": sorted(skipped_uninstalled),
                 "created_at": datetime.now(timezone.utc).isoformat(timespec="seconds")}
     finally:
         _LOCK.release()
