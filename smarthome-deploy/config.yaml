@@ -24,10 +24,12 @@ options:
   github_token: ""
   enable_test_install: false
   enable_multifile_install: false
+  authorized_admin_user_ids: ""
 schema:
   repository: str
   branch: str
   github_token: password
   enable_test_install: bool
   enable_multifile_install: bool
+  authorized_admin_user_ids: str
   baseline_commit: str
