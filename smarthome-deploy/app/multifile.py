@@ -1,6 +1,6 @@
 """Opt-in JS-only multi-file transaction engine.
 
-Only pre-existing, allowlisted www/*.js can be written, no conflicts or YAML.
+Allowlisted www/*.js may be updated or added; conflicts, YAML and deletion are forbidden.
 The enable_multifile_install option must be explicitly enabled.
 """
 from __future__ import annotations
@@ -50,6 +50,72 @@ def _directory(path):
     finally:
         os.close(root)
     return folder, path[4:]
+
+def _absent(path):
+    """Check absence without following even broken symlinks."""
+    folder, name = _directory(path)
+    try:
+        try:
+            os.stat(name, dir_fd=folder, follow_symlinks=False)
+            return False
+        except FileNotFoundError:
+            return True
+    finally:
+        os.close(folder)
+
+
+def _create(path, data):
+    """Atomically create an absent JS without clobbering a newly appeared path."""
+    if len(data) > check.MAX_DIFF_BYTES:
+        raise ValueError("New JS exceeds size limit")
+    folder, name = _directory(path)
+    tmp = ".smarthome-batch-" + secrets.token_hex(12) + ".tmp"
+    created = False
+    try:
+        if not _absent(path):
+            raise ValueError("New JS path appeared")
+        fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW | os.O_CLOEXEC,
+                     0o600, dir_fd=folder)
+        created = True
+        try:
+            with os.fdopen(fd, "wb") as stream:
+                stream.write(data)
+                stream.flush()
+                os.fsync(stream.fileno())
+        except BaseException:
+            try: os.close(fd)
+            except OSError: pass
+            raise
+        os.link(tmp, name, src_dir_fd=folder, dst_dir_fd=folder, follow_symlinks=False)
+        os.fsync(folder)
+        if _read(path)[0] != data:
+            raise RuntimeError("New JS verification failed")
+    finally:
+        if created:
+            try:
+                os.unlink(tmp, dir_fd=folder)
+                os.fsync(folder)
+            except FileNotFoundError:
+                pass
+        os.close(folder)
+
+
+def _remove_created(path, after_sha):
+    """Only remove the still-unchanged file installed by this transaction."""
+    folder, name = _directory(path)
+    try:
+        try:
+            content, _ = _read(path)
+        except FileNotFoundError:
+            return
+        if _hash(content) != after_sha:
+            raise ValueError("Created JS changed; manual recovery required")
+        os.unlink(name, dir_fd=folder)
+        os.fsync(folder)
+        if not _absent(path):
+            raise RuntimeError("Created JS remains after rollback")
+    finally:
+        os.close(folder)
 
 
 def _read(path):
@@ -216,30 +282,40 @@ def prepare():
         options = check.load_options()
         installed = baseline.load_manifest(options)
         changes = [r for r in plan["files"] if r["action"] not in (
-            "no_change", "format_only", "new_file_present"
+            "no_change", "format_only"
         )]
         if not changes or len(changes) > MAX_BATCH:
             raise ValueError("No JS changes or batch exceeds safe limit")
-        if any(r["action"] != "candidate_review" or not _allowed(r["path"])
-               or r["local"] not in ("baseline_exact", "baseline_format_only") for r in changes):
-            raise ValueError("YAML, conflicts, additions and deletions are disabled")
+        if any(not _allowed(r["path"]) or not (
+            (r["action"] == "candidate_review" and r["local"] in ("baseline_exact", "baseline_format_only")) or
+            (r["action"] == "new_file_review" and r["local"] == "local_missing")
+        ) for r in changes):
+            raise ValueError("Only safe JS updates and missing-path additions are allowed")
         if not check.GIT_SHA_RE.fullmatch(plan["target"]):
             raise ValueError("Invalid target commit")
         selected = []
         for row in sorted(changes, key=lambda x: x["path"]):
             path = row["path"]
-            if installed["files"][path]["blob_sha"] != row["baseline_sha"]:
-                raise ValueError("Baseline mismatch")
-            local, _ = _read(path)
-            original = check._load_blob_for_diff(options["repository"], options["github_token"], row["baseline_sha"])
+            is_add = row["action"] == "new_file_review"
+            if is_add:
+                if path in installed["files"] or not _absent(path):
+                    raise ValueError("New JS is tracked or already exists")
+                local, original = None, None
+            else:
+                if installed["files"][path]["blob_sha"] != row["baseline_sha"]:
+                    raise ValueError("Baseline mismatch")
+                local, _ = _read(path)
+                original = check._load_blob_for_diff(options["repository"], options["github_token"], row["baseline_sha"])
+                if check._normalize_line_ends(local) != check._normalize_line_ends(original):
+                    raise ValueError("Local edits detected")
             target = check._load_blob_for_diff(options["repository"], options["github_token"], row["target_sha"])
-            if check._normalize_line_ends(local) != check._normalize_line_ends(original):
-                raise ValueError("Local edits detected")
-            if check._normalize_line_ends(original) == check._normalize_line_ends(target):
+            if not is_add and check._normalize_line_ends(original) == check._normalize_line_ends(target):
                 raise ValueError("Formatting-only change")
-            selected.append({"path": path, "before_sha256": _hash(local), "after_sha256": _hash(target),
-                             "baseline_blob": row["baseline_sha"], "target_blob": row["target_sha"],
-                             "target_size": len(target)})
+            selected.append({"path": path, "action": "add" if is_add else "update",
+                             "before_sha256": None if is_add else _hash(local),
+                             "after_sha256": _hash(target),
+                             "baseline_blob": None if is_add else row["baseline_sha"],
+                             "target_blob": row["target_sha"], "target_size": len(target)})
         plan_id = secrets.token_hex(12)
         _PENDING.clear()
         _PENDING.update({"id": plan_id, "expires": time.monotonic() + TTL,
@@ -253,6 +329,11 @@ def prepare():
 def _revert(record, saved):
     for entry in reversed(record["files"]):
         path = entry["path"]
+        if entry.get("action", "update") == "add":
+            if path in saved or entry["before_sha256"] is not None:
+                raise ValueError("Unexpected backup for added JS")
+            _remove_created(path, entry["after_sha256"])
+            continue
         current, _ = _read(path)
         original = saved[path]
         if _hash(original) != entry["before_sha256"]:
@@ -296,24 +377,33 @@ def install(plan_id, confirmation):
         originals, targets, metadata = {}, {}, {}
         for row in pending["files"]:
             path = row["path"]
-            content, info = _read(path)
-            if _hash(content) != row["before_sha256"]:
-                raise ValueError("Local content changed after preview")
+            is_add = row.get("action") == "add"
+            if is_add:
+                if path in before["files"] or not _absent(path):
+                    raise ValueError("New JS appeared after preview")
+                metadata[path] = None
+            else:
+                content, info = _read(path)
+                if _hash(content) != row["before_sha256"]:
+                    raise ValueError("Local content changed after preview")
+                if before["files"][path]["blob_sha"] != row["baseline_blob"]:
+                    raise ValueError("Installed baseline changed")
+                originals[path] = content
+                metadata[path] = {"atime_ns": info.st_atime_ns, "mtime_ns": info.st_mtime_ns}
             target = check._load_blob_for_diff(options["repository"], options["github_token"], row["target_blob"])
             if _hash(target) != row["after_sha256"] or len(target) != row["target_size"]:
                 raise ValueError("Target blob differs from approved plan")
-            if before["files"][path]["blob_sha"] != row["baseline_blob"]:
-                raise ValueError("Installed baseline changed")
-            originals[path], targets[path] = content, target
-            metadata[path] = {"atime_ns": info.st_atime_ns, "mtime_ns": info.st_mtime_ns}
+            targets[path] = target
 
-        paths = sorted(originals)
-        snapshot = backup.create_snapshot(paths, pending["target_commit"])
-        _, saved = backup.verify_snapshot(snapshot["backup"])
+        paths = sorted(targets)
+        snapshot = backup.create_snapshot(sorted(originals), pending["target_commit"], allow_empty=True)
+        _, saved = backup.verify_snapshot(snapshot["backup"], allow_empty=True)
         if saved != originals:
             raise ValueError("Backup does not match input")
-        if any(_read(p)[0] != originals[p] for p in paths):
-            raise ValueError("File changed after backup")
+        if any(_read(p)[0] != originals[p] for p in originals) or any(
+            not _absent(p) for p in targets if p not in originals
+        ):
+            raise ValueError("Local files changed after backup")
         after = json.loads(json.dumps(before))
         for row in pending["files"]:
             after["files"][row["path"]] = baseline._entry(
@@ -325,8 +415,12 @@ def install(plan_id, confirmation):
                   "files": [{**r, "metadata": metadata[r["path"]]} for r in pending["files"]]}
         _save(record)
         try:
+            actions = {row["path"]: row.get("action", "update") for row in pending["files"]}
             for path in paths:
-                _replace(path, originals[path], targets[path])
+                if actions[path] == "add":
+                    _create(path, targets[path])
+                else:
+                    _replace(path, originals[path], targets[path])
             if any(_read(p)[0] != targets[p] for p in paths):
                 raise RuntimeError("Post-write verification failed")
             if _hash(_manifest_raw()) != pending["manifest_hash"]:
@@ -365,8 +459,8 @@ def rollback(operation_id, confirmation):
         if any(r["id"] != operation_id and r["status"] in ("installing", "rolling_back", "needs_attention")
                for r in history()["operations"]):
             raise ValueError("Another unfinished transaction exists")
-        _, saved = backup.verify_snapshot(record["backup"])
-        if set(saved) != {r["path"] for r in record["files"]}:
+        _, saved = backup.verify_snapshot(record["backup"], allow_empty=True)
+        if set(saved) != {r["path"] for r in record["files"] if r.get("action", "update") != "add"}:
             raise ValueError("Backup file list differs from journal")
         record["status"] = "rolling_back"
         _save(record)
