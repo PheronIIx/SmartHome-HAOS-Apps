@@ -224,8 +224,15 @@ class BatchTests(unittest.TestCase):
     def test_mixed_add_and_update_rolls_back_both_on_failure(self):
         path, _ = self._new_js_plan(mixed=True)
         preview = multifile.prepare()
-        # Force failure after BOTH JS files have been written, before manifest update.
-        with patch.object(baseline, "_atomic_write", side_effect=OSError("injected manifest failure")):
+        # Inject failure once, after both JS writes, so recovery can use the real writer.
+        atomic_write = baseline._atomic_write
+        calls = []
+        def fail_once(payload):
+            calls.append(1)
+            if len(calls) == 1:
+                raise OSError("injected manifest failure")
+            return atomic_write(payload)
+        with patch.object(baseline, "_atomic_write", side_effect=fail_once):
             with self.assertRaisesRegex(RuntimeError, "installation failed"):
                 multifile.install(preview["plan_id"], "INSTALL JS BATCH")
         self.assertFalse((self.ha / path).exists())
