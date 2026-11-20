@@ -13,7 +13,7 @@ class ComparisonTests(unittest.TestCase):
             self.assertEqual(module.managed_path("home-assistant/" + path), path)
         for path in ["docs/a.md", "home-assistant/secrets.yaml",
                      "home-assistant/www/plans/../secrets.yaml",
-                     "home-assistant/dashboards/server.yaml", "home-assistant/packages/nested/file.yaml",
+                     "home-assistant/dashboards/homes.yaml", "home-assistant/packages/extra.yaml", "home-assistant/packages/nested/file.yaml",
                      "frigate/config.yaml"]:
             self.assertIsNone(module.managed_path(path))
 

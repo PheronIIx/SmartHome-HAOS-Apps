@@ -32,7 +32,7 @@ class ManifestTests(unittest.TestCase):
                 if "/commits/main" in path:
                     return {"sha":"b"*40}
                 if "/commits/" in path:
-                    return {"sha":"a"*40, "commit":{"tree":{"sha":"c"*40}}}
+                    return {"sha":path.rsplit("/",1)[-1], "commit":{"tree":{"sha":"c"*40}}}
                 if "/git/trees/" in path and "recursive" in path:
                     return {"truncated":False,"tree":[
                         {"type":"blob","path":"home-assistant/www/house-card.js","sha":old_sha},
@@ -67,7 +67,7 @@ class ManifestTests(unittest.TestCase):
                 if "/commits/main" in path:
                     return {"sha":"b"*40}
                 if "/commits/" in path:
-                    return {"sha":"a"*40,"commit":{"tree":{"sha":"c"*40}}}
+                    return {"sha":path.rsplit("/",1)[-1],"commit":{"tree":{"sha":"c"*40}}}
                 if "/git/trees/" in path:
                     return {"truncated":False,"tree":[
                         {"type":"blob","path":"home-assistant/dashboards/server.yaml","sha":sha}]}

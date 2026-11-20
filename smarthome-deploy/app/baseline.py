@@ -148,6 +148,8 @@ def initialize_manifest(confirmation: str) -> dict:
     """Create the first manifest from the configured legacy baseline."""
     if confirmation != "INITIALIZE MANIFEST":
         raise ValueError("Explicit manifest initialization confirmation required")
+    if MANIFEST_PATH.exists() or MANIFEST_PATH.is_symlink():
+        raise ValueError("Installed manifest already exists; initialization is one-time")
     options = check.load_options()
     repository = str(options.get("repository", "")).strip()
     branch = str(options.get("branch", "")).strip()
