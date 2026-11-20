@@ -71,9 +71,11 @@ class DeployTests(unittest.TestCase):
         self.assertFalse(deploy.history()["operations"])
 
     def test_unexpected_github_change_blocks_preview(self):
-        self.target = self.target + b"malicious\n"
-        with self.assertRaises(ValueError):
-            deploy.prepare()
+        modified = self.target + b"malicious\n"
+        with patch.object(check, "_load_blob_for_diff", side_effect=lambda repo, token, sha:
+                          self.baseline if sha == blob_sha(self.baseline) else modified):
+            with self.assertRaises(ValueError):
+                deploy.prepare()
 
     def test_disabled_install_blocks_preview(self):
         self.options["enable_test_install"] = False
