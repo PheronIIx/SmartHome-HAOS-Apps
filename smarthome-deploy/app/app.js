@@ -295,7 +295,10 @@ backupCreate.addEventListener("click", async () => {
   try {
     const result = await backupRequest("api/backups/create", {});
     await loadBackups();
-    backupStatus.textContent = "Создана и проверена копия " + result.backup + " · " + result.file_count + " файлов.";
+    const skipped = Array.isArray(result.skipped_uninstalled) && result.skipped_uninstalled.length
+      ? " · Не включены (ещё не установлены): " + result.skipped_uninstalled.join(", ")
+      : "";
+    backupStatus.textContent = "Создана и проверена копия " + result.backup + " · " + result.file_count + " файлов." + skipped;
   } catch (error) {
     backupStatus.textContent = error.message || "Не удалось создать копию";
     backupStatus.className = "error";
