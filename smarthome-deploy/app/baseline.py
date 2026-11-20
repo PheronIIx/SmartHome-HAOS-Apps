@@ -18,6 +18,7 @@ from . import check
 
 MANIFEST_PATH = Path(os.environ.get("SMARTHOME_MANIFEST_PATH", "/data/installed-manifest.json"))
 SCHEMA_VERSION = 1
+RETIRED_MANAGED_PATHS = frozenset({"dashboards/server.yaml"})
 MAX_MANIFEST_BYTES = 1024 * 1024
 
 
@@ -129,7 +130,12 @@ def load_manifest(options: dict | None = None) -> dict | None:
     if options is not None:
         if payload.get("repository") != options.get("repository") or payload.get("branch") != options.get("branch"):
             raise ValueError("Manifest repository/branch differs from current app settings")
+    active_files = {}
     for relative, entry in payload["files"].items():
+        # Storage-mode Lovelace dashboards are not filesystem-managed. Ignore
+        # this exact legacy entry from early 0.7.0 manifests; never touch HA .storage.
+        if relative in RETIRED_MANAGED_PATHS:
+            continue
         if check.managed_path("home-assistant/" + relative) != relative or not isinstance(entry, dict):
             raise ValueError("Manifest contains a non-allowlisted path")
         if not check.GIT_SHA_RE.fullmatch(str(entry.get("source_commit", ""))):
@@ -141,7 +147,10 @@ def load_manifest(options: dict | None = None) -> dict | None:
         size = entry.get("size")
         if not isinstance(size, int) or size < 0 or size > check.MAX_DIFF_BYTES:
             raise ValueError("Invalid per-file size")
-    return payload
+        active_files[relative] = entry
+    if not active_files:
+        raise ValueError("Manifest has no active managed files")
+    return {**payload, "files": active_files}
 
 
 def initialize_manifest(confirmation: str) -> dict:
