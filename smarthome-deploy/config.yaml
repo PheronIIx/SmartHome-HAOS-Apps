@@ -1,5 +1,5 @@
 name: SmartHome Deploy
-version: 0.5.1
+version: 0.5.2
 slug: smarthome_deploy
 description: "Read-only Home Assistant comparison with local snapshots and isolated restore rehearsals."
 arch:
