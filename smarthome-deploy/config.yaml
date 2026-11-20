@@ -1,7 +1,7 @@
 name: SmartHome Deploy
-version: 0.6.0
+version: 0.7.0
 slug: smarthome_deploy
-description: "Controlled opt-in test install of house-card.js with verified backups and rollback."
+description: "Per-file installed baseline and read-only multi-file sync planning; test install remains restricted."
 arch:
   - amd64
   - aarch64

@@ -4,7 +4,7 @@ import json
 import os
 import secrets
 import hmac
-from . import backup_service, deploy
+from . import backup_service, baseline, deploy, sync_plan
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs, urlsplit
@@ -59,6 +59,28 @@ class Handler(BaseHTTPRequestHandler):
             except Exception as error:
                 print("SmartHome Deploy plan failed:", type(error).__name__, str(error), flush=True)
                 self._send(503, "application/json", json.dumps({"error": "Не удалось подготовить план. См. журнал приложения."}, ensure_ascii=False).encode())
+        elif path == "/api/sync/plan":
+            try:
+                payload = sync_plan.prepare_sync_plan()
+                self._send(200, "application/json", json.dumps(payload, ensure_ascii=False).encode())
+            except ValueError as error:
+                self._send(400, "application/json", json.dumps({"error": str(error)}).encode())
+            except Exception as error:
+                print("SmartHome Deploy sync plan failed:", type(error).__name__, str(error), flush=True)
+                self._send(503, "application/json", json.dumps({"error": "Sync plan failed"}).encode())
+        elif path == "/api/sync/diff":
+            args = parse_qs(parsed.query, keep_blank_values=True)
+            if set(args) != {"path", "commit"} or len(args["path"]) != 1 or len(args["commit"]) != 1:
+                self._send(400, "application/json", json.dumps({"error": "Invalid parameters"}).encode())
+                return
+            try:
+                payload = sync_plan.file_diff(args["path"][0], args["commit"][0])
+                self._send(200, "application/json", json.dumps(payload, ensure_ascii=False).encode())
+            except ValueError as error:
+                self._send(400, "application/json", json.dumps({"error": str(error)}, ensure_ascii=False).encode())
+            except Exception as error:
+                print("SmartHome Deploy sync diff failed:", type(error).__name__, str(error), flush=True)
+                self._send(503, "application/json", json.dumps({"error": "Sync diff failed"}).encode())
         elif path == "/api/diff":
             args = parse_qs(parsed.query, keep_blank_values=True)
             if set(args) != {"path", "commit"} or len(args["path"]) != 1 or len(args["commit"]) != 1:
@@ -83,7 +105,7 @@ class Handler(BaseHTTPRequestHandler):
             return
         parsed = urlsplit(self.path)
         if parsed.path not in ("/api/backups/create", "/api/backups/verify", "/api/backups/rehearse",
-                                "/api/deploy/prepare", "/api/deploy/install", "/api/deploy/rollback"):
+                                "/api/baseline/initialize", "/api/deploy/prepare", "/api/deploy/install", "/api/deploy/rollback"):
             self.send_error(404)
             return
         # Ingress may strip Sec-Fetch-Site or relay a same-site context.
@@ -111,7 +133,11 @@ class Handler(BaseHTTPRequestHandler):
             body = json.loads(self.rfile.read(length))
             if not isinstance(body, dict):
                 raise ValueError("Expected JSON object")
-            if parsed.path == "/api/deploy/prepare":
+            if parsed.path == "/api/baseline/initialize":
+                if set(body) != {"confirmation"} or not isinstance(body["confirmation"], str):
+                    raise ValueError("Invalid baseline initialization request")
+                payload = baseline.initialize_manifest(body["confirmation"])
+            elif parsed.path == "/api/deploy/prepare":
                 if body:
                     raise ValueError("Unexpected preview parameters")
                 payload = deploy.prepare()
