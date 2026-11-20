@@ -32,12 +32,14 @@ class ManifestTests(unittest.TestCase):
                 if "/commits/main" in path:
                     return {"sha":"b"*40}
                 if "/commits/" in path:
-                    return {"sha":path.rsplit("/",1)[-1], "commit":{"tree":{"sha":"c"*40}}}
+                    commit_id = path.rsplit("/",1)[-1]
+                    tree_id = "c"*40 if commit_id == "a"*40 else "d"*40
+                    return {"sha":commit_id, "commit":{"tree":{"sha":tree_id}}}
                 if "/git/trees/" in path and "recursive" in path:
-                    return {"truncated":False,"tree":[
-                        {"type":"blob","path":"home-assistant/www/house-card.js","sha":old_sha},
-                        {"type":"blob","path":"home-assistant/dashboards/server.yaml","sha":server_sha},
-                    ]}
+                    entries = [{"type":"blob","path":"home-assistant/www/house-card.js","sha":old_sha}]
+                    if "d"*40 in path:
+                        entries.append({"type":"blob","path":"home-assistant/dashboards/server.yaml","sha":server_sha})
+                    return {"truncated":False,"tree":entries}
                 if "/git/blobs/" in path:
                     sha = path.rsplit("/",1)[-1]
                     data = {old_sha:old,server_sha:server}[sha]
@@ -67,10 +69,12 @@ class ManifestTests(unittest.TestCase):
                 if "/commits/main" in path:
                     return {"sha":"b"*40}
                 if "/commits/" in path:
-                    return {"sha":path.rsplit("/",1)[-1],"commit":{"tree":{"sha":"c"*40}}}
+                    commit_id = path.rsplit("/",1)[-1]
+                    tree_id = "c"*40 if commit_id == "a"*40 else "d"*40
+                    return {"sha":commit_id,"commit":{"tree":{"sha":tree_id}}}
                 if "/git/trees/" in path:
-                    return {"truncated":False,"tree":[
-                        {"type":"blob","path":"home-assistant/dashboards/server.yaml","sha":sha}]}
+                    entries = [{"type":"blob","path":"home-assistant/dashboards/server.yaml","sha":sha}] if "d"*40 in path else []
+                    return {"truncated":False,"tree":entries}
                 if "/git/blobs/" in path:
                     return {"encoding":"base64","size":len(remote),"content":base64.b64encode(remote).decode()}
                 raise AssertionError(path)
