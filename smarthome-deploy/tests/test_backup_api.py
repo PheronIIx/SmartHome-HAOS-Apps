@@ -22,7 +22,9 @@ class BackupApiTests(unittest.TestCase):
         self.thread.join(timeout=3)
 
     def request(self, path, token=None, origin=None, site="same-origin"):
-        headers = {"Content-Type": "application/json", "Sec-Fetch-Site": site}
+        headers = {"Content-Type": "application/json"}
+        if site is not None:
+            headers["Sec-Fetch-Site"] = site
         if token is not None:
             headers["X-CSRF-Token"] = token
         if origin is not None:
@@ -39,6 +41,19 @@ class BackupApiTests(unittest.TestCase):
             self.assertEqual(self.request("/api/backups/create"), 403)
             self.assertEqual(self.request("/api/backups/create", server.CSRF_TOKEN, site="cross-site"), 403)
             # Ingress may rewrite forwarded host, so Origin comparison is not reliable.\n            # CSRF and Sec-Fetch-Site remain mandatory.
+
+    def test_fetch_metadata_variants_keep_csrf_mandatory(self):
+        allowed = ("same-origin", "same-site", "none", None)
+        with patch.dict("os.environ", {"SMARTHOME_DEV_ALLOW_LOCAL": "1"}), \
+             patch.object(server.backup_service, "create_manual_backup", return_value={"verified": True}) as action:
+            for site in allowed:
+                with self.subTest(site=site):
+                    self.assertEqual(self.request("/api/backups/create", server.CSRF_TOKEN, site=site), 200)
+                    self.assertEqual(self.request("/api/backups/create", site=site), 403)
+            for site in ("cross-site", "unexpected"):
+                with self.subTest(site=site):
+                    self.assertEqual(self.request("/api/backups/create", server.CSRF_TOKEN, site=site), 403)
+            self.assertEqual(action.call_count, len(allowed))
 
     def test_rejection_reason_is_safe_and_specific(self):
         with patch.dict("os.environ", {"SMARTHOME_DEV_ALLOW_LOCAL": "1"}):

@@ -79,7 +79,12 @@ class Handler(BaseHTTPRequestHandler):
         if parsed.path not in ("/api/backups/create", "/api/backups/verify", "/api/backups/rehearse"):
             self.send_error(404)
             return
-        if self.headers.get("Sec-Fetch-Site") not in ("same-origin", "none"):
+        # Ingress may strip Sec-Fetch-Site or relay a same-site context.
+        # Reject an explicit cross-site request (and unexpected values), but
+        # do not treat missing metadata as proof of a cross-site request.
+        # The unpredictable X-CSRF-Token remains mandatory in every case.
+        fetch_site = self.headers.get("Sec-Fetch-Site")
+        if fetch_site not in (None, "same-origin", "same-site", "none"):
             self._deny_post("fetch_metadata")
             return
         # Ingress rewrites proxy Host; comparing it with browser Origin
