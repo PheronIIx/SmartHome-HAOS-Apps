@@ -48,6 +48,7 @@ class SyncPlanTests(unittest.TestCase):
             with patch.object(check,"CONFIG_ROOT",root), \
                  patch.object(check,"load_options",return_value=options), \
                  patch.object(baseline,"load_manifest",return_value=manifest), \
+                 patch.object(sync_plan.plan,"_managed_tree",return_value={"packages/g45.yaml":new_sha,"packages/infra.yaml":new_sha}), \
                  patch.object(check,"github_json",side_effect=api):
                 result=sync_plan.prepare_sync_plan()
             actions={row["path"]:row["action"] for row in result["files"]}
@@ -81,6 +82,7 @@ class SyncPlanTests(unittest.TestCase):
             with patch.object(check,"CONFIG_ROOT",root), \
                  patch.object(check,"load_options",return_value=options), \
                  patch.object(baseline,"load_manifest",return_value=manifest), \
+                 patch.object(sync_plan.plan,"_managed_tree",return_value={"dashboards/server.yaml":target_sha}), \
                  patch.object(check,"github_json",side_effect=api):
                 result=sync_plan.prepare_sync_plan()
             row=next(x for x in result["files"] if x["path"]=="dashboards/server.yaml")
@@ -112,6 +114,7 @@ class SyncPlanTests(unittest.TestCase):
             with patch.object(check,"CONFIG_ROOT",root), \
                  patch.object(check,"load_options",return_value=options), \
                  patch.object(baseline,"load_manifest",return_value=manifest), \
+                 patch.object(sync_plan.plan,"_managed_tree",return_value={"packages/g45.yaml":new_sha}), \
                  patch.object(check,"github_json",side_effect=api):
                 result=sync_plan.file_diff("packages/g45.yaml","b"*40)
             self.assertEqual(result["baseline"]["kind"],"content_changed")
