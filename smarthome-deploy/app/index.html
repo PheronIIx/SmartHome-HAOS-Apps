@@ -11,7 +11,7 @@ button{padding:10px 15px;border-radius:9px;border:1px solid color-mix(in srgb,Ca
 </style></head><body><main>
 <div class="top"><div><h2>SmartHome Deploy</h2><small>Обновления GitHub → Home Assistant</small></div></div>
 <div class="card"><h3>Обновления</h3>
-<p><small>Проверка сравнивает файлы с последней установленной версией. Установка доступна только для существующих разрешённых JS-файлов в отдельно включённом тестовом режиме.</small></p>
+<p><small>Проверка сравнивает файлы с последней установленной версией. Установка доступна только для существующих и новых JS-файлов из точного allowlist в отдельно включённом тестовом режиме.</small></p>
 <div class="file-actions"><button id="sync-check" type="button">Проверить</button> <button id="batch-prepare" type="button">Обновить</button></div>
 <p id="sync-status" role="status" aria-live="polite">Проверка ещё не запускалась.</p>
 <div id="sync-files"></div>
@@ -35,5 +35,5 @@ button{padding:10px 15px;border-radius:9px;border:1px solid color-mix(in srgb,Ca
 <div id="summary" role="status" aria-live="polite"></div><small id="version"></small>
 <div id="files"></div></section>
 </details>
-<p><small>0.10.0: YAML, JSON, добавление/удаление и локальные конфликты заблокированы. Управление через дашборд «Сервер» будет отдельным этапом.</small></p>
+<p><small>0.10.0: добавление новых JS разрешено только для отсутствующего пути из allowlist; YAML, JSON, удаление и локальные конфликты заблокированы. Управление через дашборд «Сервер» будет отдельным этапом.</small></p>
 </main><script src="app.js" defer></script></body></html>
