@@ -21,7 +21,7 @@ button{padding:10px 15px;border-radius:9px;border:1px solid color-mix(in srgb,Ca
 <p><small>Здесь можно проверить результат операции и выполнить ручной откат при необходимости.</small></p>
 <button id="batch-refresh" type="button">Обновить историю</button><div id="batch-history"></div>
 </details>
-<p><small><strong>Доступ:</strong> API доступны только пользователям, ID которых указаны в настройке приложения <code>authorized_admin_user_ids</code>. Это локальный список доступа к Deploy, не общая ролевая модель Home Assistant. Режим записи по умолчанию выключен.</small></p>
+<p><small><strong>Доступ:</strong> панель ограничена администраторами Home Assistant настройкой <code>panel_admin: true</code>. Запросы проходят через HA Ingress; отдельной проверки роли в API приложения пока нет. Установка JS по умолчанию выключена.</small></p>
 <details class="card" id="diagnostics"><summary><strong>Диагностика</strong></summary>
 <p><small>Технические операции для первичной настройки и поиска ошибок. Для обычных обновлений не требуются.</small></p>
 <section><h3>Установленная база (манифест)</h3><p><small>Манифест хранит версии и SHA-256 ранее установленных файлов. Инициализация — разовая операция; не повторяйте её для обычных обновлений.</small></p>
