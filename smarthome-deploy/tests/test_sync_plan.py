@@ -60,9 +60,9 @@ class SyncPlanTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             root=Path(directory)
             (root/"www").mkdir()
-            local=b"const card = true;\\r\\n"
-            old=b"const card = true;\\n"
-            target=b"const card = true;\\r\\n\\r\\n"
+            local=b"const card = true;\r\n"
+            old=b"const card = true;\n"
+            target=b"const card = true;\r\n\r\n"
             (root/"www"/"house-card.js").write_bytes(local)
             old_sha,target_sha=blob(old),blob(target)
             manifest={"schema_version":1,"repository":"PheronIIx/SmartHome","branch":"main",
@@ -71,16 +71,18 @@ class SyncPlanTests(unittest.TestCase):
                     "sha256":hashlib.sha256(old).hexdigest(),"size":len(old)}}}
             options={"repository":"PheronIIx/SmartHome","branch":"main","github_token":"fake"}
             def api(path,token):
+                if "/commits/main" in path:
+                    return {"sha":"b"*40}
                 if "/git/blobs/" in path:
                     sha=path.rsplit("/",1)[-1]
                     data={old_sha:old,target_sha:target}[sha]
                     return {"encoding":"base64","size":len(data),"content":base64.b64encode(data).decode()}
                 raise AssertionError(path)
-            with patch.object(check,"CONFIG_ROOT",root), \\
-                 patch.object(check,"load_options",return_value=options), \\
-                 patch.object(baseline,"load_manifest",return_value=manifest), \\
-                 patch.object(sync_plan.plan,"_managed_tree",return_value={"www/house-card.js":target_sha}), \\
-                 patch.object(check,"github_json",side_effect=lambda path,token: {"sha":"b"*40}):
+            with patch.object(check,"CONFIG_ROOT",root), \
+                 patch.object(check,"load_options",return_value=options), \
+                 patch.object(baseline,"load_manifest",return_value=manifest), \
+                 patch.object(sync_plan.plan,"_managed_tree",return_value={"www/house-card.js":target_sha}), \
+                 patch.object(check,"github_json",side_effect=api):
                 result=sync_plan.prepare_sync_plan()
             self.assertEqual(result["totals"]["format_only"],1)
             self.assertEqual(result["totals"]["candidate_review"],0)
@@ -90,9 +92,9 @@ class SyncPlanTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             root=Path(directory)
             (root/"www").mkdir()
-            local=b"const card = true;\\r\\n"
-            old=b"const card = true;\\n"
-            target=b"const card = false;\\n"
+            local=b"const card = true;\r\n"
+            old=b"const card = true;\n"
+            target=b"const card = false;\n"
             (root/"www"/"house-card.js").write_bytes(local)
             old_sha,target_sha=blob(old),blob(target)
             manifest={"schema_version":1,"repository":"PheronIIx/SmartHome","branch":"main",
@@ -101,16 +103,18 @@ class SyncPlanTests(unittest.TestCase):
                     "sha256":hashlib.sha256(old).hexdigest(),"size":len(old)}}}
             options={"repository":"PheronIIx/SmartHome","branch":"main","github_token":"fake"}
             def api(path,token):
+                if "/commits/main" in path:
+                    return {"sha":"b"*40}
                 if "/git/blobs/" in path:
                     sha=path.rsplit("/",1)[-1]
                     data={old_sha:old,target_sha:target}[sha]
                     return {"encoding":"base64","size":len(data),"content":base64.b64encode(data).decode()}
                 raise AssertionError(path)
-            with patch.object(check,"CONFIG_ROOT",root), \\
-                 patch.object(check,"load_options",return_value=options), \\
-                 patch.object(baseline,"load_manifest",return_value=manifest), \\
-                 patch.object(sync_plan.plan,"_managed_tree",return_value={"www/house-card.js":target_sha}), \\
-                 patch.object(check,"github_json",side_effect=lambda path,token: {"sha":"b"*40}):
+            with patch.object(check,"CONFIG_ROOT",root), \
+                 patch.object(check,"load_options",return_value=options), \
+                 patch.object(baseline,"load_manifest",return_value=manifest), \
+                 patch.object(sync_plan.plan,"_managed_tree",return_value={"www/house-card.js":target_sha}), \
+                 patch.object(check,"github_json",side_effect=api):
                 result=sync_plan.prepare_sync_plan()
             self.assertEqual(result["totals"]["candidate_review"],1)
             self.assertEqual(result["totals"]["format_only"],0)
