@@ -84,8 +84,7 @@ class JsBatchApiTests(unittest.TestCase):
 
     def test_engine_gate_is_disabled_by_default(self):
         from app import multifile
-        with patch.object(server.check if hasattr(server, "check") else multifile.check,
-                          "load_options", return_value={"enable_multifile_install": False}):
+        with patch.object(multifile.check, "load_options", return_value={"enable_multifile_install": False}):
             with self.assertRaisesRegex(ValueError, "disabled"):
                 multifile.prepare()
 
