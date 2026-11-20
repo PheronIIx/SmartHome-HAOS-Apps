@@ -1,7 +1,7 @@
-"""Internal JS-only multi-file transaction engine. No HTTP routes or UI controls.
+"""Opt-in JS-only multi-file transaction engine.
 
-The enable_multifile_install option is deliberately absent from config.yaml.
 Only pre-existing, allowlisted www/*.js can be written, no conflicts or YAML.
+The enable_multifile_install option must be explicitly enabled.
 """
 from __future__ import annotations
 
@@ -206,7 +206,7 @@ def _manifest_digest(payload):
 
 
 def prepare():
-    """Internal-only review; no writes except for in-memory plan token."""
+    """Prepare a short-lived JS-only plan; no HA file writes."""
     _enabled()
     with backup_service._LOCK:
         _no_unfinished()
@@ -273,7 +273,7 @@ def _revert(record, saved):
 
 
 def install(plan_id, confirmation):
-    """Never remotely callable; intentionally unpublished gate is mandatory."""
+    """Install exactly one reviewed and pinned JS batch through the guarded API."""
     _enabled()
     if confirmation != "INSTALL JS BATCH":
         raise ValueError("Explicit install confirmation required")
