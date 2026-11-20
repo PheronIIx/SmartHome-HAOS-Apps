@@ -30,7 +30,6 @@ MANAGED_PATHS = frozenset({
     "packages/notify.yaml", "packages/scenarios.yaml",
     "www/cctv-cards.js", "www/dacha-sky-card.js", "www/dacha-tiles.js",
     "www/house-card.js", "www/house-dash.js", "www/plans/g45.json",
-    "dashboards/server.yaml",
 })
 
 
