@@ -1,5 +1,5 @@
 name: SmartHome Deploy
-version: 0.7.1
+version: 0.7.2
 slug: smarthome_deploy
 description: "Per-file installed baseline and read-only multi-file sync planning; test install remains restricted."
 arch:
