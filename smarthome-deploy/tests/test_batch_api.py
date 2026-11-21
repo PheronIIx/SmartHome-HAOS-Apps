@@ -92,11 +92,12 @@ class JsBatchApiTests(unittest.TestCase):
     def test_read_only_api_from_ingress(self):
         with patch.dict("os.environ", {"SMARTHOME_DEV_ALLOW_LOCAL": "0"}), \
              patch.object(server.sync_plan, "prepare_sync_plan", return_value={
-                 "configured": True, "files": []
-             }):
+                 "configured": True, "target": "a" * 40, "files": []
+             }), patch.object(server.status_export, "publish_plan") as publication:
             handler = FakeHandler("/api/sync/plan")
             handler.do_GET()
             self.assertEqual(handler.status, 200)
+            publication.assert_called_once()
 
     def test_engine_gate_is_disabled_by_default(self):
         from app import multifile
