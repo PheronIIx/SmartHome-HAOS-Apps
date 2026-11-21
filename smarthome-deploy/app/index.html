@@ -2,14 +2,14 @@
 <html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>SmartHome Deploy</title><style>
 :root{color-scheme:light dark;font-family:system-ui,sans-serif}body{margin:0;padding:16px;background:Canvas;color:CanvasText}
-main{max-width:800px;margin:auto}.top{display:flex;align-items:center;justify-content:space-between;gap:12px}
+main{max-width:800px;margin:auto}.top{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}.back-link{display:inline-flex;align-items:center;gap:6px;padding:9px 12px;border:1px solid color-mix(in srgb,CanvasText 30%,transparent);border-radius:9px;color:CanvasText;text-decoration:none;white-space:nowrap}.back-link:hover,.back-link:focus-visible{background:color-mix(in srgb,CanvasText 8%,Canvas);outline-offset:2px}
 small{opacity:.7}.card{border:1px solid color-mix(in srgb,CanvasText 20%,transparent);border-radius:12px;padding:16px;margin:12px 0}
 button{padding:10px 15px;border-radius:9px;border:1px solid color-mix(in srgb,CanvasText 30%,transparent);background:Canvas;color:CanvasText;cursor:pointer}
 .status{font-weight:600}.ok{color:#2d9d61}.warn{color:#c77e0d}.error{color:#c84343}
 .file{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:10px 0;border-top:1px solid color-mix(in srgb,CanvasText 14%,transparent);overflow-wrap:anywhere}
 .file code{font-size:.82rem}.file-actions{display:flex;gap:10px;align-items:center;flex-wrap:wrap;justify-content:flex-end}.diff-button{padding:6px 10px;font-size:.85rem}.diff-details{padding:12px;margin:0 0 8px;background:color-mix(in srgb,CanvasText 5%,Canvas);border-radius:8px;min-width:0}.diff-details pre{max-height:460px;overflow:auto;font:12px/1.5 ui-monospace,monospace;white-space:pre;tab-size:2}.diff-details p{font-size:.85rem}.diff-add{color:#248b51}.diff-remove{color:#c84343}.diff-context{opacity:.8}@media(max-width:500px){body{padding:10px}.file{align-items:flex-start;flex-wrap:wrap}.file-actions{width:100%;justify-content:space-between}}.file span{white-space:nowrap}p{line-height:1.5}details.card>summary{cursor:pointer;padding:2px 0}details.card>section{border-top:1px solid color-mix(in srgb,CanvasText 14%,transparent);padding-top:10px;margin-top:14px}details.card>section h3{margin-bottom:6px}.file-actions>button{flex:1}
 </style></head><body><main>
-<div class="top"><div><h2>SmartHome Deploy</h2><small>Обновления GitHub → Home Assistant</small></div></div>
+<div class="top"><div><h2>SmartHome Deploy</h2><small>Обновления GitHub → Home Assistant</small></div><a class="back-link" href="/dashboard-server/updates" target="_top" aria-label="Вернуться к обновлениям на панели Сервер">← К обновлениям</a></div>
 <div class="card"><h3>Обновления</h3>
 <p><small>Проверка сравнивает файлы с последней установленной версией. Установка доступна только для существующих и новых JS-файлов из точного allowlist в отдельно включённом тестовом режиме.</small></p>
 <div class="file-actions"><button id="sync-check" type="button">Проверить</button> <button id="batch-prepare" type="button">Обновить</button></div>
