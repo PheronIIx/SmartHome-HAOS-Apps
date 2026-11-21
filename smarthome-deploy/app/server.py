@@ -52,6 +52,7 @@ class Handler(BaseHTTPRequestHandler):
         elif path == "/api/status":
             try:
                 payload = check()
+                status_export.refresh()
                 self._send(200, "application/json", json.dumps(payload, ensure_ascii=False).encode())
             except Exception as error:
                 print("SmartHome Deploy check failed:", type(error).__name__, str(error), flush=True)
