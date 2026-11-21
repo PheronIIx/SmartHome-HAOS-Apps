@@ -268,3 +268,24 @@
 В точный серверный allowlist добавлен `www/smarthome-updates.js`. Это read-only Lovelace-карточка: она отображает сущности Home Assistant `update.*`, установленную и доступную версии и открывает стандартный диалог HA по нажатию. Карточка **не** устанавливает обновления и не вызывает сервисы. Состояние синхронизации JS из GitHub проверяется в приложении SmartHome Deploy отдельно.
 
 Ресурс после установки файла нужно один раз зарегистрировать в Storage-дашборде «Сервер» через UI Home Assistant: `/local/smarthome-updates.js?v=1`; затем добавить карточку с `type: custom:smarthome-updates-card`. Автоматическая запись в `.storage` не выполняется. До первого теста установки оставить `enable_multifile_install=false`; включать только на согласованную операцию с готовым бэкапом и планом отката.
+
+## DEV-07 — статус обновлений для общей панели (1.0.0-rc.3; до проверки на HAOS)
+
+**Согласованная граница:** SmartHome Deploy остаётся JS-only, запись YAML, Storage и обновление самого add-on не добавляются. `boot: auto` позволяет проводить фоновую **read-only** проверку при запуске приложения и затем каждые 21600 секунд (6 часов). Ни планировщик, ни чтение JSON не вызывают install/rollback.
+
+**Публикация:** модуль `app/status_export.py` использует уже существующий `sync_plan.prepare_sync_plan()` и его per-file baseline. Результат атомарно сохраняется в отображаемую папку HA как `/config/.smarthome-deploy/status.json` (путь внутри add-on: `/homeassistant/.smarthome-deploy/status.json`). Файл с mode 0644 доступен локальному command_line-сенсору HA; токен GitHub не записывается в JSON.
+
+Формат `schema_version: 1`:
+- `status`: `ok`, `blocked`, `unconfigured` или `error`;
+- `checked_at`: время **успешной** проверки UTC; при ошибке `null`, а `attempted_at` фиксирует неудачную попытку;
+- `target_commit`: полный закреплённый SHA GitHub main либо `null`;
+- `available_count`: количество JS update/add, потенциально допустимых текущей JS-only моделью; `blocked_count`: конфликтные, удаляемые и неустанавливаемые YAML/JSON кандидаты;
+- `groups`: группы компонентов по точному пути из allowlist; `files`: объекты `{path, group, action, status}`; `message`: описание ограничения.
+
+`available_count` не означает разрешение на установку: реальная операция всё равно проходит проверки полномочий Ingress, настройки `enable_multifile_install`, SHA, свежести плана, бэкапа, состояния файлов и ограничения JS-only. Группа `cards` охватывает только `www/*.js`; `plans` — `www/plans/`; `packages` — YAML-пакеты; `configuration` — остальные управляемые файлы. Все не-JS-кандидаты помечаются `blocked`, независимо от наличия изменения в репозитории.
+
+**Ошибки и целостность:** публикация выполняется через временный файл внутри каталога, `fsync` и `os.replace`. Символические ссылки для корня и статусного каталога не проходятся. При ошибке планировщика публикуется `status=error` и `available_count=null`, а не ложный ноль. Если запись невозможна, старый файл остаётся; Home Assistant считает результат устаревшим через 12 часов и показывает неполные данные. При отсутствии файла сенсор недоступен. Публикация не относится к управляемому allowlist и не меняет baseline.
+
+**Интеграция HA:** приёмник `sensor.smarthome_deploy_updates` и расширенный `sensor.infra_updates` находятся в `SmartHome/home-assistant/packages/infra.yaml` и должны быть внесены **вручную** через File Editor с последующей проверкой конфигурации HA. Обе Storage-панели подключают `custom:smarthome-updates-card` через UI Home Assistant. Их исходники в Git — лишь эталонные копии. Текущие PR SmartHome #10 и SmartHome-HAOS-Apps #17 переработаны вместе: это не два независимых счётчика.
+
+**Порядок испытания, без автоматического деплоя:** после ревью и Merge PR обновить приложение по штатной процедуре add-on; убедиться, что `enable_multifile_install=false`; проверить запуск read-only опроса и `status.json`. Затем отдельно согласовать ручное внесение YAML, пройти HA Check configuration и проверить `sensor.smarthome_deploy_updates` / `sensor.infra_updates`. Вручную зарегистрировать JS-ресурс и настроить обе панели. Для первой реальной JS-установки/отката нужен отдельный согласованный тест с полным бэкапом HAOS. До него статус: **не проверено на HAOS, не готово к безусловному Merge**.
