@@ -4,7 +4,8 @@ import json
 import os
 import secrets
 import hmac
-from . import backup_service, baseline, deploy, multifile, sync_plan, sync_preflight
+import threading
+from . import backup_service, baseline, deploy, multifile, sync_plan, sync_preflight, status_export
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs, urlsplit
@@ -67,6 +68,7 @@ class Handler(BaseHTTPRequestHandler):
         elif path == "/api/sync/plan":
             try:
                 payload = sync_plan.prepare_sync_plan()
+                status_export.publish_plan(payload)
                 self._send(200, "application/json", json.dumps(payload, ensure_ascii=False).encode())
             except ValueError as error:
                 self._send(400, "application/json", json.dumps({"error": str(error)}).encode())
@@ -214,4 +216,5 @@ class Handler(BaseHTTPRequestHandler):
         self.wfile.write(payload)
 
 if __name__ == "__main__":
+    threading.Thread(target=status_export.run_periodically, daemon=True, name="deploy-readonly-check").start()
     ThreadingHTTPServer(("0.0.0.0", PORT), Handler).serve_forever()
