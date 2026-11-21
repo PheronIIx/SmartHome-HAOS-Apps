@@ -282,12 +282,16 @@ def prepare():
             raise ValueError("Initialize installed manifest")
         options = check.load_options()
         installed = baseline.load_manifest(options)
-        changes = [r for r in plan["files"] if r["action"] not in (
+        # The read-only plan covers all managed files, but this transaction is
+        # strictly JS-only. Non-JS changes remain visible (and possibly blocked)
+        # in the status/diagnostic plan; they must not block safe JS updates.
+        # Validate *all* changed JS, including conflicts and deletions.
+        changes = [r for r in plan["files"] if _allowed(r["path"]) and r["action"] not in (
             "no_change", "format_only"
         )]
         if not changes or len(changes) > MAX_BATCH:
             raise ValueError("No JS changes or batch exceeds safe limit")
-        if any(not _allowed(r["path"]) or not (
+        if any(not (
             (r["action"] == "candidate_review" and r["local"] in ("baseline_exact", "baseline_format_only")) or
             (r["action"] == "new_file_review" and r["local"] == "local_missing")
         ) for r in changes):

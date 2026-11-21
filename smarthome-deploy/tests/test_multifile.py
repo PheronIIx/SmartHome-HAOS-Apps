@@ -132,21 +132,52 @@ class BatchTests(unittest.TestCase):
             multifile.install(preview["plan_id"], "INSTALL JS BATCH")
         self.assertEqual(outside.read_bytes(), b"external")
 
-    def test_yaml_or_deletion_is_refused_even_when_gate_enabled(self):
+    def test_non_js_changes_do_not_block_safe_js_and_manifest_stays_unchanged(self):
+        yaml_path = "packages/infra.yaml"
+        yaml_entry = baseline._entry(SHA_A, blob(b"original yaml"), b"original yaml")
+        self.manifest["files"][yaml_path] = yaml_entry
+        self.manifest_path.write_text(json.dumps(self.manifest, sort_keys=True, indent=2))
+        initial_yaml = json.loads(self.manifest_path.read_text())["files"][yaml_path]
+        plan = self.sync_plan()
+        plan["files"].extend([
+            {"path": yaml_path, "action": "blocked_local_drift", "local": "local_drift",
+             "baseline_sha": blob(b"original yaml"), "target_sha": SHA_D},
+            {"path": "configuration.yaml", "action": "candidate_review",
+             "local": "baseline_exact", "baseline_sha": SHA_C, "target_sha": SHA_D},
+        ])
+        with patch.object(sync_plan, "prepare_sync_plan", return_value=plan):
+            preview = multifile.prepare()
+            self.assertEqual({r["path"] for r in preview["files"]}, set(PATHS))
+            installed = multifile.install(preview["plan_id"], "INSTALL JS BATCH")
+        self.assertEqual(set(installed["paths"]), set(PATHS))
+        self.assertEqual(baseline.load_manifest(self.opts)["files"][yaml_path], initial_yaml)
+        self.assertFalse((self.ha / yaml_path).exists())
+        multifile.rollback(installed["id"], "ROLLBACK JS BATCH")
+        self.assertEqual(baseline.load_manifest(self.opts)["files"][yaml_path], initial_yaml)
+
+    def test_only_yaml_change_is_not_installable(self):
         with patch.object(sync_plan, "prepare_sync_plan", return_value={
             "configured": True, "target": SHA_B,
             "files": [{"path": "packages/infra.yaml", "action": "candidate_review",
                        "local": "baseline_exact", "baseline_sha": SHA_C, "target_sha": SHA_D}]
         }):
-            with self.assertRaisesRegex(ValueError, "Only safe JS"):
+            with self.assertRaisesRegex(ValueError, "No JS changes"):
                 multifile.prepare()
-        with patch.object(sync_plan, "prepare_sync_plan", return_value={
-            "configured": True, "target": SHA_B,
-            "files": [{"path": PATHS[0], "action": "deletion_review",
-                       "local": "baseline_exact", "baseline_sha": SHA_C, "target_sha": None}]
-        }):
-            with self.assertRaisesRegex(ValueError, "Only safe JS"):
-                multifile.prepare()
+
+    def test_js_deletion_and_conflict_still_block_whole_batch(self):
+        for action, local in [("deletion_review", "baseline_exact"),
+                              ("blocked_local_drift", "local_drift"),
+                              ("blocked_unverified", "unverified")]:
+            with self.subTest(action=action), patch.object(sync_plan, "prepare_sync_plan", return_value={
+                "configured": True, "target": SHA_B,
+                "files": self.sync_plan()["files"] + [{
+                    "path": "www/house-card.js", "action": action, "local": local,
+                    "baseline_sha": SHA_C, "target_sha": SHA_D
+                }]
+            }):
+                with self.assertRaisesRegex(ValueError, "Only safe JS"):
+                    multifile.prepare()
+                self.assertFalse(multifile._PENDING)
 
     def test_unsafe_manifest_change_blocks_install(self):
         preview = multifile.prepare()
