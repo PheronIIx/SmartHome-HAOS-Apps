@@ -379,7 +379,7 @@ backupCreate.addEventListener("click", async () => {
 backupRefresh.addEventListener("click", loadBackups);
 loadBackups();
 
-// 0.10.0: minimal JS-only batch operations in the add-on Ingress.
+// 1.0.0: opt-in JS-only batch operations via the HA Ingress interface.
 const batchPrepare = document.getElementById("batch-prepare");
 const batchRefresh = document.getElementById("batch-refresh");
 const batchStatus = document.getElementById("batch-status");
