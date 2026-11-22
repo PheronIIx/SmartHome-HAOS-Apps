@@ -1,6 +1,6 @@
-"""Strictly read-only preflight for a future multi-file deploy.
+"""Strictly read-only diagnostics for the existing opt-in JS-only transaction.
 
-All outputs are diagnostics, not capabilities or approvals. A later writer MUST
+All outputs are diagnostics, not capabilities or approvals. The JS writer MUST
 re-fetch the commit, re-check local bytes and verify backup/restore safeguards.
 """
 from __future__ import annotations
