@@ -134,7 +134,7 @@ def prepare_sync_plan() -> dict:
         "baseline_files": len(previous), "target": target_commit,
         "initialized_from_commit": installed["initialized_from_commit"],
         "totals": totals, "files": rows, "ready_to_install": False,
-        "message": "Предварительный план только для просмотра. Многофайловая установка ещё не включена.",
+        "message": "Предварительный план только для просмотра. JS-установка требует отдельного включения и подтверждения.",
     }
 
 
