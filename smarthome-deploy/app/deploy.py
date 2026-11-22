@@ -1,6 +1,6 @@
-"""Narrow, explicit 0.6.0 deploy/rollback for one harmless JS marker only.
+"""Legacy single-marker test deploy/rollback retained for compatibility in 1.0.0.
 
-The application mount is writable in this release. All mutating paths are
+This legacy module is separate from the current JS-only batch writer. Its paths are
 hardcoded to www/house-card.js; do not expand this module to YAML by default.
 """
 from __future__ import annotations

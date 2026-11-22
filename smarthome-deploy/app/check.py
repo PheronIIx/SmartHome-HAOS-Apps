@@ -1,4 +1,4 @@
-"""Compare GitHub Git blob IDs against a read-only HA configuration mount."""
+"""Read-only GitHub/HA comparison; the mount also supports controlled JS writes elsewhere."""
 from __future__ import annotations
 import base64
 from concurrent.futures import ThreadPoolExecutor
